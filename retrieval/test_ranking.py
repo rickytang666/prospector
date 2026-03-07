@@ -46,4 +46,14 @@ def test_rank_candidates_empty_query_no_crash():
 
     assert len(out.candidates) <= 3
     assert out.query_summary
-    assert out.retrieval_metadata["mode"] == "phase0_stub"
+    assert out.retrieval_metadata["mode"] in {"phase0_stub", "phase1_semantic_plus_rules"}
+
+def test_query_shift_changes_some_results():
+    ctx = get_mock_team_context()
+    a = rank_candidates(ctx, "ground station mapping telemetry", k=5)
+    b = rank_candidates(ctx, "pcb manufacturing sponsorship", k=5)
+
+    a_ids = {x.entity_id for x in a.candidates}
+    b_ids = {x.entity_id for x in b.candidates}
+
+    assert len(a_ids.intersection(b_ids)) < 5

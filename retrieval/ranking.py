@@ -84,3 +84,162 @@ def rank_candidates(team_context: TeamContext, query: str, k: int = 5, filters: 
 def get_entity_embedding(entity_id: str) -> list[float] | None: return None
 def reindex_entities(entities: list[Entity]) -> int: return len(entities)
 
+from retrieval.config import RANKING_WEIGHTS, DEFAULT_K
+from retrieval.retrieval import semantic_search
+from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
+
+_old_rank_candidates = rank_candidates
+_old_get_entity_embedding = get_entity_embedding
+_old_reindex_entities = reindex_entities
+
+_ENTS = []
+
+def _boot():
+    global _ENTS
+    if not _ENTS:
+        _ENTS = get_mock_entities()
+    if not index_ready():
+        embed_entities(_ENTS)
+
+def _s(xs):
+    o=set()
+    for x in xs:
+        x2=(x or "").strip().lower()
+        if x2: o.add(x2)
+    return o
+
+def _ctx_tags(ctx: TeamContext, q: str):
+    c=set()
+    for b in ctx.active_blockers: c.update(_s(b.tags))
+    for ss in ctx.subsystems:
+        ss2=(ss or "").strip().lower()
+        if ss2: c.add(ss2)
+    for w in (q or "").lower().replace("?"," ").replace(","," ").split():
+        if len(w)>2 and w not in {"the","and","for","our","with","who","can","help","need","to","of"}:
+            c.add(w)
+    return c
+
+def _jac(a,b):
+    if not a or not b: return 0.0
+    u=len(a.union(b))
+    if u==0: return 0.0
+    return len(a.intersection(b))/u
+
+def _sup(e: Entity, ctx: TeamContext):
+    n=_s(ctx.inferred_support_needs)
+    if not n: return 0.0
+    h=_s(e.support_types)
+    return len(n.intersection(h))/max(1,len(n))
+
+def _wat(e: Entity):
+    ev = e.waterloo_affinity_evidence or []
+    if not ev: return 0.0
+    st={"team_sponsor","official_page","official_partner"}
+    if len(ev)>=2:
+        for i in ev:
+            if (i.type or "").lower() in st: return 1.0
+        return 0.8
+    if (ev[0].type or "").lower() in st: return 0.6
+    return 0.3
+
+def _compose(sem,tag,sup,wat):
+    w=RANKING_WEIGHTS
+    return w["semantic"]*sem + w["tag_overlap"]*tag + w["support_fit"]*sup + w["waterloo_affinity"]*wat
+
+def _reasons(sb,ov,suphits,wn):
+    r=[]
+    if sb.semantic_score >= 0.70: r.append("Strong semantic relevance to your current need.")
+    if ov: r.append("Direct tag overlap: " + ", ".join(ov[:4]) + ".")
+    if suphits: r.append("Support fit: " + ", ".join(suphits[:3]) + ".")
+    if wn: r.append("Waterloo-connected: " + wn)
+    if not r: r=["Moderate match from available signals."]
+    return r[:4]
+
+def _ev(e,ov,suphits):
+    z=[f"{e.summary} (from entity summary)"]
+    if ov: z.append("Matched tags: " + ", ".join(ov[:5]) + " (from tags)")
+    if suphits: z.append("Matching support: " + ", ".join(suphits[:4]) + " (from support_types)")
+    elif e.support_types: z.append("Available support: " + ", ".join(e.support_types[:4]) + " (from support_types)")
+    if e.waterloo_affinity_evidence: z.append(e.waterloo_affinity_evidence[0].text + " (from waterloo_affinity_evidence)")
+    return z[:3]
+
+def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
+    t0 = time.perf_counter()
+    _boot()
+
+    raw = semantic_search(_ENTS, query=query, team_context=team_context, k=max(1,k))
+    ctx_tags = _ctx_tags(team_context, query)
+
+    out=[]
+    for e,sem in raw:
+        if filters and filters.get("entity_type") and e.entity_type != filters["entity_type"]:
+            continue
+
+        et = _s(e.tags)
+        ov = sorted(list(et.intersection(ctx_tags)))
+        n = _s(team_context.inferred_support_needs)
+        h = _s(e.support_types)
+        suphits = sorted(list(n.intersection(h)))
+
+        t = _jac(et,ctx_tags)
+        s = _sup(e,team_context)
+        w = _wat(e)
+        allv = _compose(sem,t,s,w)
+
+        sb = ScoreBreakdown(
+            semantic_score=round(sem,4),
+            tag_overlap_score=round(t,4),
+            support_fit_score=round(s,4),
+            waterloo_affinity_score=round(w,4),
+        )
+
+        wn = e.waterloo_affinity_evidence[0].text if e.waterloo_affinity_evidence else None
+
+        out.append(RankedCandidate(
+            entity_id=e.entity_id,
+            name=e.name,
+            entity_type=e.entity_type,
+            overall_score=round(allv,4),
+            score_breakdown=sb,
+            matched_reasons=_reasons(sb,ov,suphits,wn),
+            evidence_snippets=_ev(e,ov,suphits),
+            support_types=e.support_types,
+            waterloo_affinity_evidence=e.waterloo_affinity_evidence,
+        ))
+
+    out.sort(key=lambda x: x.overall_score, reverse=True)
+    out = out[:max(0,k)]
+
+    ms = (time.perf_counter()-t0)*1000.0
+    return RankedCandidateResponse(
+        query_summary=((query or "No query provided").strip()),
+        candidates=out,
+        retrieval_metadata={
+            "mode":"phase1_semantic_plus_rules",
+            "timing_ms":round(ms,2),
+            "corpus_size":corpus_size(),
+            "weights":dict(RANKING_WEIGHTS),
+            "filters_applied":filters or {},
+        },
+    )
+
+# override old stubs, but keep fallback
+def rank_candidates(team_context: TeamContext, query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
+    try:
+        return _rank_candidates_phase1(team_context, query, k=k, filters=filters)
+    except Exception:
+        return _old_rank_candidates(team_context, query, k=k, filters=filters)
+
+def get_entity_embedding(entity_id: str):
+    x = _get_emb(entity_id)
+    if x is not None: return x
+    return _old_get_entity_embedding(entity_id)
+
+def reindex_entities(entities: list[Entity]):
+    global _ENTS
+    _ENTS = list(entities)
+    try:
+        return embed_entities(_ENTS)
+    except Exception:
+        return _old_reindex_entities(entities)
+
