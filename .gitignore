@@ -2,3 +2,8 @@
 .env
 __pycache__/
 *.pyc
+
+*.md
+!README.md
+!docs/
+!docs/**/*.md
