@@ -15,6 +15,7 @@ from supabase import create_client
 from scraper.gather import gather
 from scraper.scrape import scrape
 from scraper.enrich import enrich
+from scraper.embedding import embed_entity, EMBEDDING_MODEL, get_embedding_error_hint
 
 load_dotenv()
 
@@ -122,6 +123,15 @@ def store_to_supabase(entities, raw_dir):
                     "fetched_at": page.get("fetched_at"),
                 }).execute()
 
+        # vector embedding for semantic search (retrieval RPC match_entities_for_team)
+        emb = embed_entity(entity)
+        if emb is not None:
+            sb.table("entity_embeddings").upsert({
+                "entity_id": entity["id"],
+                "embedding": emb,
+                "model": EMBEDDING_MODEL,
+            }, on_conflict="entity_id").execute()
+
         count += 1
 
     return count
@@ -129,6 +139,67 @@ def store_to_supabase(entities, raw_dir):
 
 def _slug(name: str) -> str:
     return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
+
+
+def run_embeddings_only(limit: int | None = None) -> dict:
+    """
+    Generate and store embeddings for entities that don't have one yet.
+    Reads from Supabase (entities table), skips rows that already exist in entity_embeddings.
+    Returns {"embedded": n, "skipped": m, "failed": k}.
+    """
+    sb = get_supabase()
+    if not sb:
+        return {"embedded": 0, "skipped": 0, "failed": 0, "error": "no supabase creds"}
+
+    # All entities (id, name, summary, tags, support_types)
+    r = sb.table("entities").select("id, name, summary, tags, support_types").execute()
+    rows = (r.data or []) if hasattr(r, "data") else []
+    if limit:
+        rows = rows[:limit]
+
+    # Entity IDs that already have an embedding
+    er = sb.table("entity_embeddings").select("entity_id").execute()
+    existing = {str(x["entity_id"]) for x in (er.data or []) if x.get("entity_id")}
+
+    embedded = 0
+    failed = 0
+    skipped = 0
+    first_upsert_error: str | None = None
+    for row in rows:
+        eid = str(row.get("id") or "")
+        if not eid:
+            continue
+        if eid in existing:
+            skipped += 1
+            continue
+        entity = {
+            "id": eid,
+            "name": row.get("name") or "",
+            "summary": row.get("summary") or "",
+            "tags": row.get("tags") or [],
+            "support_types": row.get("support_types") or [],
+        }
+        emb = embed_entity(entity)
+        if emb is None:
+            failed += 1
+            continue
+        try:
+            sb.table("entity_embeddings").upsert({
+                "entity_id": eid,
+                "embedding": emb,
+                "model": EMBEDDING_MODEL,
+            }, on_conflict="entity_id").execute()
+            embedded += 1
+        except Exception as ex:
+            failed += 1
+            if first_upsert_error is None:
+                first_upsert_error = str(ex)
+
+    out = {"embedded": embedded, "skipped": skipped, "failed": failed}
+    if failed > 0 and embedded == 0:
+        hint = get_embedding_error_hint()
+        out["error"] = hint or first_upsert_error or "embed or upsert failed"
+    return out
 
 
 def _dedupe_companies(companies: list[dict]) -> list[dict]:
@@ -234,9 +305,10 @@ def cleanup(
 
 
 class RunParams(BaseModel):
-    sources: list[dict] | None = None   
-    limit: int | None = None  
-    enrich_only: bool = False  
+    sources: list[dict] | None = None
+    limit: int | None = None
+    enrich_only: bool = False
+    embeddings_only: bool = False  # only generate embeddings for existing entities in DB (skip gather/scrape/enrich/store)
 
 
 @router.post("/run")
@@ -244,6 +316,10 @@ def run_pipeline(
     params: RunParams = RunParams(),
     _auth: None = Depends(require_scraper_secret),
 ):
+    if params.embeddings_only:
+        out = run_embeddings_only(limit=params.limit)
+        return {"status": "done", **out}
+
     # run full pipeline: gather -> scrape -> enrich -> store (or enrich + store only if enrich_only)
     if not params.enrich_only:
         if params.sources:
@@ -283,10 +359,16 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Scraper pipeline")
     parser.add_argument("--enrich-only", action="store_true", help="Skip gather & scrape; only run enrich and store to DB")
+    parser.add_argument("--embeddings-only", action="store_true", help="Only generate embeddings for existing entities in DB (no gather/scrape/enrich)")
     parser.add_argument("--limit", type=int, default=None, help="Max companies to process")
     args = parser.parse_args()
 
-    if args.enrich_only:
+    if args.embeddings_only:
+        out = run_embeddings_only(limit=args.limit)
+        print(f"Embeddings: {out['embedded']} embedded, {out['skipped']} already had, {out['failed']} failed.")
+        if out.get("error"):
+            print(f"Reason: {out['error']}")
+    elif args.enrich_only:
         enrich(limit=args.limit)
         entities_file = data_dir / "entities.json"
         entities = json.load(open(entities_file)) if entities_file.exists() else []
