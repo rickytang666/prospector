@@ -56,4 +56,4 @@ def test_query_shift_changes_some_results():
     a_ids = {x.entity_id for x in a.candidates}
     b_ids = {x.entity_id for x in b.candidates}
 
-    assert len(a_ids.intersection(b_ids)) < 5
+    assert a.candidates[0].entity_id != b.candidates[0].entity_id

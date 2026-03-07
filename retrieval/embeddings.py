@@ -31,14 +31,18 @@ def _local(text: str):
 def _get_client():
     global client
     if client is not None: return client
-    k = os.getenv("OPENAI_API_KEY","").strip()
+    k = os.getenv("OPENROUTER_API_KEY","").strip()
     if not k: return None
     try:
         from openai import OpenAI  # type: ignore
-        client = OpenAI(api_key=k)
+        client = OpenAI(
+            api_key=k,
+            base_url="https://openrouter.ai/api/v1",
+        )
         return client
     except Exception:
         return None
+
 
 def embed_text(text: str):
     c = _get_client()

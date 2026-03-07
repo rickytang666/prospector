@@ -10,6 +10,14 @@ from retrieval.models import (
     TeamContext,
 )
 
+def _q_terms(q: str):
+    s=set()
+    for w in (q or "").lower().replace("?"," ").replace(","," ").split():
+        if len(w)>2 and w not in {"the","and","for","our","with","who","can","help","need","to","of"}:
+            s.add(w)
+    return s
+
+
 def build_stub_candidate(entity: Entity, semantic: float, tag: float, support: float, waterloo: float) -> RankedCandidate:
     overall = (0.4*semantic) + (0.25*tag) + (0.2*support) + (0.15*waterloo)
     reasons = ["testing stub", "derive from retrieval signals later"]
@@ -168,7 +176,8 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
     _boot()
 
     raw = semantic_search(_ENTS, query=query, team_context=team_context, k=max(1,k))
-    ctx_tags = _ctx_tags(team_context, query)
+    ctx_tags = _ctx_tags(team_context, "") 
+    q_tags = _q_terms(query)                
 
     out=[]
     for e,sem in raw:
@@ -176,15 +185,32 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
             continue
 
         et = _s(e.tags)
-        ov = sorted(list(et.intersection(ctx_tags)))
         n = _s(team_context.inferred_support_needs)
         h = _s(e.support_types)
         suphits = sorted(list(n.intersection(h)))
 
-        t = _jac(et,ctx_tags)
+        q_ov = et.intersection(q_tags) if q_tags else set()
+        c_ov = et.intersection(ctx_tags)
+
+        ov = sorted(list(q_ov if q_ov else c_ov))
+
+        q_tag_score = _jac(et, q_tags) if q_tags else 0.0
+        ctx_tag_score = _jac(et, ctx_tags)
+
+        t = (0.7 * q_tag_score + 0.3 * ctx_tag_score) if q_tags else ctx_tag_score
+
         s = _sup(e,team_context)
         w = _wat(e)
         allv = _compose(sem,t,s,w)
+
+        # force query intent to matter more in hackathon mode
+        if q_tags:
+            if q_ov:
+                allv += 0.18 * (len(q_ov) / max(1, len(q_tags)))
+            else:
+                allv -= 0.08
+        if allv < 0.0: allv = 0.0
+        if allv > 1.0: allv = 1.0
 
         sb = ScoreBreakdown(
             semantic_score=round(sem,4),
@@ -242,4 +268,3 @@ def reindex_entities(entities: list[Entity]):
         return embed_entities(_ENTS)
     except Exception:
         return _old_reindex_entities(entities)
-
