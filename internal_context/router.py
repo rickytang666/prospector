@@ -20,6 +20,7 @@ class IngestRequest(BaseModel):
 async def ingest(req: IngestRequest):
     await db.delete_chunks(req.team_name)
     chunks = []
+    ctx = None
 
     if req.urls:
         website_chunks = await asyncio.to_thread(scrape_website, req.urls, req.team_name)
@@ -44,7 +45,7 @@ async def ingest(req: IngestRequest):
         await db.upsert_team_context(ctx)
         print(f"team context: {ctx}")
 
-    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks)}
+    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks), "context": ctx if chunks else None}
 
 
 @router.get("/context/{team_name}")
