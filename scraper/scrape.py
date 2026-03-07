@@ -170,18 +170,24 @@ def scrape():
         company_dir.mkdir(parents=True, exist_ok=True)
 
         pages = {}
-        for path in ["", "/about", "/contact"]:
-            target = url.rstrip("/") + path
-            print(f"    {target}")
-            raw_html, clean_text = scrape_url(target)
-            if clean_text:
-                pages[path or "/"] = {
-                    "url": target,
-                    "title": name + (f" - {path}" if path else ""),
-                    "raw_text": clean_text,
-                    "fetched_at": datetime.now(timezone.utc).isoformat(),
-                }
-            time.sleep(0.5)
+        src_type = company.get("source_type", "")
+
+        if src_type == "velocity_startup":
+            real_url, profile = scrape_velocity_profile(company)
+            if profile:
+                pages["velocity_profile"] = profile
+            if real_url:
+                print(f"    real site: {real_url}")
+                pages.update(smart_crawl(real_url, name))
+
+        elif src_type == "yc_startup":
+            profile = scrape_yc_profile(company)
+            if profile:
+                pages["yc_profile"] = profile
+            pages.update(smart_crawl(url, name))
+
+        else:
+            pages.update(smart_crawl(url, name))
 
         with open(company_dir / "pages.json", "w") as f:
             json.dump(pages, f, indent=2)
@@ -189,6 +195,9 @@ def scrape():
         meta = {**company, "pages_scraped": len(pages)}
         with open(company_dir / "meta.json", "w") as f:
             json.dump(meta, f, indent=2)
+
+        print(f"    scraped {len(pages)} pages")
+        time.sleep(1)
 
     print("done")
 
