@@ -7,3 +7,15 @@ __pycache__/
 !README.md
 !docs/
 !docs/**/*.md
+
+.vscode/
+.idea/
+.cursor/
+.antigravity/
+.claude/
+.cursorrules
+CLAUDE.md
+testinput/
+*__pycache__
+data/
+*.pyc
