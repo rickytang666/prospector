@@ -35,11 +35,12 @@ create table contact_routes (
     value text not null
 );
 
--- for person 3 (unnecessary rn)
+-- For semantic search; dimension must match retrieval (openai/text-embedding-3-small = 1536).
+-- If you have existing vector(768), run migrations/002_entity_embeddings_1536.sql
 create table entity_embeddings (
     id uuid primary key default gen_random_uuid(),
     entity_id uuid references entities(id) on delete cascade unique,
-    embedding vector(768),
+    embedding vector(1536),
     model text,
     created_at timestamptz default now()
 );

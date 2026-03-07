@@ -15,6 +15,7 @@ __pycache__/
 .claude/
 .cursorrules
 CLAUDE.md
+
 testinput/
 *__pycache__
 data/

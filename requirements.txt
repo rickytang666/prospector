@@ -1,11 +1,12 @@
+supabase
+openai
+python-dotenv
 fastapi
 uvicorn[standard]
 discord.py==2.6.4
 httpx
 beautifulsoup4
 lxml
-openai
-supabase
 pydantic
 python-dotenv
 notion-client
