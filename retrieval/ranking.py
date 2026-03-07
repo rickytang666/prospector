@@ -96,6 +96,7 @@ from retrieval.config import RANKING_WEIGHTS, DEFAULT_K
 from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
+from retrieval.reasons import build_matched_reasons, build_evidence_snippets
 
 _old_rank_candidates = rank_candidates
 _old_get_entity_embedding = get_entity_embedding
@@ -137,21 +138,10 @@ def _compose(sem,tag,sup,wat):
     return compose_scores(sem, tag, sup, wat)
 
 def _reasons(sb,ov,suphits,wn):
-    r=[]
-    if sb.semantic_score >= 0.70: r.append("Strong semantic relevance to your current need.")
-    if ov: r.append("Direct tag overlap: " + ", ".join(ov[:4]) + ".")
-    if suphits: r.append("Support fit: " + ", ".join(suphits[:3]) + ".")
-    if wn: r.append("Waterloo-connected: " + wn)
-    if not r: r=["Moderate match from available signals."]
-    return r[:4]
+    return build_matched_reasons(sb, ov, suphits, wn)
 
 def _ev(e,ov,suphits):
-    z=[f"{e.summary} (from entity summary)"]
-    if ov: z.append("Matched tags: " + ", ".join(ov[:5]) + " (from tags)")
-    if suphits: z.append("Matching support: " + ", ".join(suphits[:4]) + " (from support_types)")
-    elif e.support_types: z.append("Available support: " + ", ".join(e.support_types[:4]) + " (from support_types)")
-    if e.waterloo_affinity_evidence: z.append(e.waterloo_affinity_evidence[0].text + " (from waterloo_affinity_evidence)")
-    return z[:3]
+    return build_evidence_snippets(e, ov, suphits)
 
 def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
     t0 = time.perf_counter()
