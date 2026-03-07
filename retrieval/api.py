@@ -80,3 +80,7 @@ def retrieve_context_pack_from_payload(payload: dict[str, Any]):
         entity_filters=ef,
         chunk_filters=cf,
     )
+
+
+def rag_from_payload(payload: dict[str, Any]):
+    return retrieve_context_pack_from_payload(payload)

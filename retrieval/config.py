@@ -9,6 +9,6 @@ LOCAL_DIM = 96
 # db retrieval config (person4 embeddings path)
 SUPABASE_RPC_MATCH_FN = "match_entities_for_team"
 SUPABASE_RPC_MATCH_CHUNKS_FN = "match_internal_chunks_for_team"
-LOW_CONFIDENCE_TOP1 = 0.42
-MEDIUM_CONFIDENCE_TOP1 = 0.65
+LOW_CONFIDENCE_TOP1 = 0.28
+MEDIUM_CONFIDENCE_TOP1 = 0.40
 MIN_RESULT_SCORE = 0.12
