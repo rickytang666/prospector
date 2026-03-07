@@ -4,6 +4,7 @@ from retrieval.mock_data import get_mock_team_context, get_mock_entities
 from retrieval.models import Entity, TeamContext, Blocker, WaterlooAffinityEvidence
 from retrieval.ranking import rank_candidates, reindex_entities
 from retrieval.scoring import to_set, jacc, support_fit, waterloo_affinity, compose_scores, clamp01
+from retrieval.api import rank_candidates_dict, rank_from_payload
 
 
 def _ctx(needs=None):
@@ -113,6 +114,38 @@ def check_dict_team_context():
     assert isinstance(out.retrieval_metadata["normalization_warnings"], list)
     assert len(out.candidates) >= 1
 
+def check_api_dict_output():
+    ctx = get_mock_team_context()
+    out = rank_candidates_dict(ctx, "mapping telemetry support", k=4)
+    assert isinstance(out, dict)
+    assert isinstance(out.get("query_summary"), str)
+    assert isinstance(out.get("candidates"), list)
+    assert isinstance(out.get("retrieval_metadata"), dict)
+    if out["candidates"]:
+        c0 = out["candidates"][0]
+        assert "score_breakdown" in c0
+        assert "matched_reasons" in c0
+        assert "evidence_snippets" in c0
+
+def check_payload_api():
+    p = {
+        "query": "ground station mapping help",
+        "team_context": {
+            "team_name": "UW Orbital",
+            "repo": "x/y",
+            "active_blockers": [{"summary": "map drift", "tags": ["mapping", "telemetry"], "severity": "high"}],
+            "subsystems": ["ground station"],
+            "inferred_support_needs": ["software_credits"],
+            "context_summary": "needs mapping support",
+        },
+        "k": "4",
+        "filters": {"entity_type": "provider"},
+    }
+    out = rank_from_payload(p)
+    assert isinstance(out, dict)
+    assert isinstance(out.get("candidates"), list)
+    assert isinstance(out.get("retrieval_metadata"), dict)
+
 
 def check_scoring():
     assert to_set(["  Mapping ", "mapping", "RF", "", "  "]) == {"mapping", "rf"}
@@ -167,6 +200,8 @@ def run_all():
         ("query_shift", check_query_shift),
         ("reindex", check_reindex),
         ("dict_ctx", check_dict_team_context),
+        ("api_dict", check_api_dict_output),
+        ("api_payload", check_payload_api),
         ("scoring", check_scoring),
         ("db_norm", check_db_norm_helpers),
     ]
