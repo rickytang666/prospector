@@ -4,17 +4,26 @@ from discord import app_commands
 from testing_info import MOCK_CANDIDATES, MOCK_EXPLANATIONS
 
 
+def score_bar(score, length=10):
+    filled = round(score * length)
+    return f"{'█' * filled}{'░' * (length - filled)} {int(score * 100)}%"
+
+
 def candidates_embed(candidates, query):
+    top = candidates[:5]
+
     embed = discord.Embed(
         title="Top Support Matches",
-        description=f'Query: *"{query}"*',
-        color=discord.Color.blue()
+        description=f'{len(top)} matches for *"{query}"*',
+        color=discord.Color.blue(),
+        timestamp=discord.utils.utcnow()
     )
 
-    for i, c in enumerate(candidates[:5], start=1):
+    for i, c in enumerate(top, start=1):
+        reasons = "\n".join(f"> {r}" for r in c["matched_reasons"])
         embed.add_field(
-            name=f"{i}. {c['name']} — score {c['overall_score']:.2f}",
-            value="\n".join(f"• {r}" for r in c["matched_reasons"]),
+            name=f"{i}. {c['name']}",
+            value=f"`{score_bar(c['overall_score'])}`\n{reasons}",
             inline=False
         )
 
