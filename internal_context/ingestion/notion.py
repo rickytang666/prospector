@@ -51,13 +51,20 @@ OFFICIAL_TEXT_TYPES = {
 }
 
 
-def fetch_official(page_id: str) -> str | None:
-    """use official api"""
-    headers = {
-        "Authorization": f"Bearer {NOTION_TOKEN}",
-        "Notion-Version": "2022-06-28",
-    }
+OFFICIAL_HEADERS = {
+    "Authorization": f"Bearer {NOTION_TOKEN}",
+    "Notion-Version": "2022-06-28",
+}
+
+
+def fetch_official(page_id: str, visited: set, max_pages: int = 30) -> str | None:
+    """use official api, recursively follows child pages"""
+    if page_id in visited or len(visited) >= max_pages:
+        return None
+    visited.add(page_id)
+
     lines = []
+    child_page_ids = []
     next_cursor = None
 
     while True:
@@ -68,7 +75,7 @@ def fetch_official(page_id: str) -> str | None:
         try:
             res = httpx.get(
                 f"https://api.notion.com/v1/blocks/{page_id}/children",
-                headers=headers,
+                headers=OFFICIAL_HEADERS,
                 params=params,
                 timeout=15,
             )
@@ -86,6 +93,9 @@ def fetch_official(page_id: str) -> str | None:
         data = res.json()
         for block in data.get("results", []):
             btype = block.get("type")
+            if btype == "child_page":
+                child_page_ids.append(block["id"])
+                continue
             if btype not in OFFICIAL_TEXT_TYPES:
                 continue
             rich_text = block.get(btype, {}).get("rich_text", [])
@@ -96,6 +106,11 @@ def fetch_official(page_id: str) -> str | None:
         if not data.get("has_more"):
             break
         next_cursor = data.get("next_cursor")
+
+    for child_id in child_page_ids:
+        child_text = fetch_official(child_id, visited, max_pages)
+        if child_text:
+            lines.append(child_text)
 
     return "\n".join(lines) if lines else None
 
@@ -151,9 +166,10 @@ def scrape_notion(page_url: str, team_name: str) -> list[Chunk]:
     # try official api first
     if NOTION_TOKEN:
         print("trying official notion api...")
-        text = fetch_official(page_id)
+        visited_official: set = set()
+        text = fetch_official(page_id, visited_official)
         if text:
-            print("got text from official api")
+            print(f"got text from {len(visited_official)} notion pages (official)")
 
     # dfs
     if not text:
