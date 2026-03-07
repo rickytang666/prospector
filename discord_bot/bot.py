@@ -6,7 +6,7 @@ from discord.ext import commands
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from config import TOKEN, GUILD_ID
+from config import DISCORD_TOKEN, GUILD_ID
 
 intents = discord.Intents.default()
 
@@ -47,6 +47,6 @@ async def on_ready():
 async def main():
     async with bot:
         await load_cogs()
-        await bot.start(TOKEN)
+        await bot.start(DISCORD_TOKEN)
 
 asyncio.run(main())
