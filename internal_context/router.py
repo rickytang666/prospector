@@ -5,6 +5,7 @@ from storage import db
 from internal_context.ingestion.website import scrape_website
 from internal_context.ingestion.github import scrape_github
 from internal_context.ingestion.discord_ingestion import fetch_channel_chunks
+from internal_context.ingestion.notion import scrape_notion
 from internal_context.embedding.embedder import embed_chunks
 from internal_context.extraction.extractor import extract_team_context
 
@@ -16,6 +17,7 @@ class IngestRequest(BaseModel):
     org_url: str
     urls: list[str] = []  # website, docs, wiki — wtv the team has
     discord_channel_ids: list[int] = []  # team picks which channels to ingest
+    notion_urls: list[str] = []
 
 
 @router.post("/ingest")
@@ -33,6 +35,12 @@ async def ingest(req: IngestRequest):
         github_chunks = await asyncio.to_thread(scrape_github, req.org_url, req.team_name)
         chunks.extend(github_chunks)
         print(f"got {len(github_chunks)} chunks from github")
+
+    if req.notion_urls:
+        for url in req.notion_urls:
+            notion_chunks = await asyncio.to_thread(scrape_notion, url, req.team_name)
+            chunks.extend(notion_chunks)
+            print(f"got {len(notion_chunks)} chunks from notion {url}")
 
     if req.discord_channel_ids:
         from discord_bot.bot import bot
