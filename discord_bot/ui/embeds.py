@@ -45,7 +45,7 @@ def team_context_embed(context):
 
     embed = discord.Embed(
         title=f"{context['team_name']} — Team Analysis",
-        description=f"[{repo_url}]({repo_url})",
+        url=repo_url,
         color=discord.Color.blurple(),
         timestamp=discord.utils.utcnow()
     )
