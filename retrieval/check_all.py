@@ -4,7 +4,7 @@ from retrieval.mock_data import get_mock_team_context, get_mock_entities
 from retrieval.models import Entity, TeamContext, Blocker, WaterlooAffinityEvidence
 from retrieval.ranking import rank_candidates, reindex_entities
 from retrieval.scoring import to_set, jacc, support_fit, waterloo_affinity, compose_scores, clamp01
-from retrieval.api import rank_candidates_dict, rank_from_payload
+from retrieval.api import rank_candidates_dict, rank_from_payload, retrieve_context_pack_dict
 
 
 def _ctx(needs=None):
@@ -146,6 +146,15 @@ def check_payload_api():
     assert isinstance(out.get("candidates"), list)
     assert isinstance(out.get("retrieval_metadata"), dict)
 
+def check_context_pack():
+    ctx = get_mock_team_context()
+    out = retrieve_context_pack_dict(ctx, "ground station mapping help", k_entities=4, k_chunks=3)
+    assert isinstance(out, dict)
+    assert isinstance(out.get("entity_matches"), list)
+    assert isinstance(out.get("internal_chunks"), list)
+    assert isinstance(out.get("citations"), list)
+    assert isinstance(out.get("retrieval_meta"), dict)
+
 
 def check_scoring():
     assert to_set(["  Mapping ", "mapping", "RF", "", "  "]) == {"mapping", "rf"}
@@ -202,6 +211,7 @@ def run_all():
         ("dict_ctx", check_dict_team_context),
         ("api_dict", check_api_dict_output),
         ("api_payload", check_payload_api),
+        ("context_pack", check_context_pack),
         ("scoring", check_scoring),
         ("db_norm", check_db_norm_helpers),
     ]

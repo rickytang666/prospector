@@ -5,6 +5,7 @@ from typing import Any
 
 from retrieval.ranking import rank_candidates
 from retrieval.models import TeamContext
+from retrieval.context_pack import retrieve_context_pack
 
 
 def rank_candidates_dict(
@@ -32,3 +33,50 @@ def rank_from_payload(payload: dict[str, Any]):
     if not isinstance(f, dict):
         f = {}
     return rank_candidates_dict(team_context=tc, query=q, k=k, filters=f)
+
+
+def retrieve_context_pack_dict(
+    team_context: TeamContext | dict[str, Any],
+    query: str,
+    k_entities: int = 5,
+    k_chunks: int = 5,
+    entity_filters: dict[str, Any] | None = None,
+    chunk_filters: dict[str, Any] | None = None,
+):
+    return retrieve_context_pack(
+        team_context=team_context,
+        query=query,
+        k_entities=k_entities,
+        k_chunks=k_chunks,
+        entity_filters=entity_filters,
+        chunk_filters=chunk_filters,
+    )
+
+
+def retrieve_context_pack_from_payload(payload: dict[str, Any]):
+    q = str(payload.get("query", ""))
+    tc = payload.get("team_context", {})
+    ke = payload.get("k_entities", payload.get("k", 5))
+    kc = payload.get("k_chunks", 5)
+    ef = payload.get("entity_filters", payload.get("filters", {}))
+    cf = payload.get("chunk_filters", {})
+    try:
+        ke = int(ke)
+    except Exception:
+        ke = 5
+    try:
+        kc = int(kc)
+    except Exception:
+        kc = 5
+    if not isinstance(ef, dict):
+        ef = {}
+    if not isinstance(cf, dict):
+        cf = {}
+    return retrieve_context_pack_dict(
+        team_context=tc,
+        query=q,
+        k_entities=ke,
+        k_chunks=kc,
+        entity_filters=ef,
+        chunk_filters=cf,
+    )
