@@ -35,12 +35,6 @@ async def ingest(req: IngestRequest):
     if chunks:
         chunks = await asyncio.to_thread(embed_chunks, chunks)
         await db.insert_chunks(chunks)
-        # sanity check
-        sample = await db.get_chunks(req.team_name)
-        if sample:
-            emb = sample[0].get("embedding")
-            print(f"sample embedding: {'ok' if emb and len(emb) == 1536 else 'MISSING or wrong size'} (len={len(emb) if emb else 0})")
-
         ctx = await asyncio.to_thread(extract_team_context, req.team_name, chunks)
         await db.upsert_team_context(ctx)
         print(f"team context: {ctx}")
