@@ -4,9 +4,8 @@ import sys
 import discord
 from discord.ext import commands
 
-sys.path.insert(0, os.path.dirname(__file__))
 
-from config import TOKEN, GUILD_ID
+from config import DISCORD_TOKEN as TOKEN, GUILD_ID
 
 intents = discord.Intents.default()
 
@@ -29,9 +28,7 @@ async def on_ready():
     await bot.tree.sync(guild=guild)
     print(f"Logged in as {bot.user}")
 
-async def main():
+async def start_bot():
     async with bot:
         await load_cogs()
         await bot.start(TOKEN)
-
-asyncio.run(main())
