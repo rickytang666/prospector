@@ -48,9 +48,41 @@ def scrape_github(org_url: str, team_name: str) -> list[Chunk]:
 
     for repo in repos:
         chunks.extend(fetch_readme(org, repo, team_name))
+        chunks.extend(fetch_issues(org, repo, team_name))
 
-    # TODO: issues, docs
+    # TODO: docs
 
+    return chunks
+
+
+def fetch_issues(org: str, repo: str, team_name: str) -> list[Chunk]:
+    chunks = []
+    page = 1
+    while True:
+        res = httpx.get(
+            f"https://api.github.com/repos/{org}/{repo}/issues",
+            headers=HEADERS,
+            params={"state": "open", "per_page": 100, "page": page},
+        )
+        if res.status_code != 200:
+            print(f"failed to fetch issues for {org}/{repo}: {res.status_code}")
+            break
+        data = res.json()
+        if not data:
+            break
+        for issue in data:
+            body = issue.get("body") or ""
+            if not body.strip():
+                continue
+            if "pull_request" in issue:
+                continue
+            chunks.append(Chunk(
+                team_name=team_name,
+                source_type="github_issue",
+                source_url=issue["html_url"],
+                content=f"{issue['title']}\n\n{body}",
+            ))
+        page += 1
     return chunks
 
 
