@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from storage import db
 from internal_context.ingestion.website import scrape_website
 from internal_context.ingestion.github import scrape_github
+from internal_context.ingestion.discord_ingestion import fetch_channel_chunks
 from internal_context.embedding.embedder import embed_chunks
 from internal_context.extraction.extractor import extract_team_context
 
@@ -14,6 +15,7 @@ class IngestRequest(BaseModel):
     team_name: str
     org_url: str
     urls: list[str] = []  # website, docs, wiki — wtv the team has
+    discord_channel_ids: list[int] = []  # team picks which channels to ingest
 
 
 @router.post("/ingest")
@@ -31,6 +33,13 @@ async def ingest(req: IngestRequest):
         github_chunks = await asyncio.to_thread(scrape_github, req.org_url, req.team_name)
         chunks.extend(github_chunks)
         print(f"got {len(github_chunks)} chunks from github")
+
+    if req.discord_channel_ids:
+        from discord_bot.bot import bot
+        for channel_id in req.discord_channel_ids:
+            discord_chunks = await fetch_channel_chunks(bot, channel_id, req.team_name)
+            chunks.extend(discord_chunks)
+            print(f"got {len(discord_chunks)} chunks from discord channel {channel_id}")
 
     if chunks:
         chunks = await asyncio.to_thread(embed_chunks, chunks)
