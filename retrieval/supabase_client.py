@@ -23,7 +23,7 @@ def get_supabase_client():
         return _client
 
     url = _must(os.getenv("SUPABASE_URL"), "SUPABASE_URL")
-    key = _must(os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY"), "SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY")
+    key = _must(os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY"), "SUPABASE_KEY or SUPABASE_ANON_KEY")
 
     try:
         from supabase import create_client  # type: ignore
