@@ -65,6 +65,36 @@ def _reasons(sb,ov,suphits,wn):
 def _ev(e,ov,suphits):
     return build_evidence_snippets(e, ov, suphits)
 
+def _arr(v):
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [str(x) for x in v if str(x).strip()]
+    if isinstance(v, str):
+        if "," in v:
+            return [x.strip() for x in v.split(",") if x.strip()]
+        z = v.strip()
+        return [z] if z else []
+    return [str(v)]
+
+def _entity_ok(e: Entity, filters: dict[str, Any] | None):
+    if not filters:
+        return True
+    t = str(filters.get("entity_type", "")).strip().lower()
+    if t and (e.entity_type or "").strip().lower() != t:
+        return False
+    tag_any = to_set(_arr(filters.get("tags_any")))
+    if tag_any:
+        et = to_set(e.tags)
+        if not et.intersection(tag_any):
+            return False
+    sup_any = to_set(_arr(filters.get("support_types_any")))
+    if sup_any:
+        es = to_set(e.support_types)
+        if not es.intersection(sup_any):
+            return False
+    return True
+
 def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
     t0 = time.perf_counter()
     _boot()
@@ -91,7 +121,7 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
 
     out=[]
     for e,sem in raw:
-        if filters and filters.get("entity_type") and e.entity_type != filters["entity_type"]:
+        if not _entity_ok(e, filters):
             continue
 
         et = _s(e.tags)

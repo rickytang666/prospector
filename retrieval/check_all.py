@@ -56,6 +56,9 @@ def check_filter():
     out = rank_candidates(ctx, "need geospatial support", k=10, filters={"entity_type": "professor"})
     for c in out.candidates:
         assert c.entity_type == "professor"
+    out2 = rank_candidates(ctx, "support", k=10, filters={"support_types_any": ["software_licenses"]})
+    for c in out2.candidates:
+        assert "software_licenses" in [x.lower() for x in c.support_types]
 
 
 def check_empty():
