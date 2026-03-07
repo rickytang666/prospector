@@ -11,6 +11,11 @@ def get_client() -> Client:
     return _client
 
 
+async def delete_chunks(team_name: str) -> None:
+    db = get_client()
+    db.table("chunks").delete().eq("team_name", team_name).execute()
+
+
 async def insert_chunks(chunks: list[dict]) -> None:
     db = get_client()
     rows = [c.model_dump(exclude_none=True) for c in chunks]

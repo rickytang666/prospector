@@ -17,6 +17,7 @@ class IngestRequest(BaseModel):
 
 @router.post("/ingest")
 async def ingest(req: IngestRequest):
+    await db.delete_chunks(req.team_name)
     chunks = []
 
     if req.urls:
