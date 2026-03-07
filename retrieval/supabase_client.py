@@ -15,10 +15,6 @@ def _must(v: str | None, k: str):
 
 
 def get_supabase_client():
-    """
-    lazy client init so import of retrieval modules doesn't crash if env isn't wired yet.
-    runtime failure only when someone actually calls DB retrieval path.
-    """
     global _client
     if _client is not None:
         return _client
@@ -52,13 +48,6 @@ def fetch_semantic_candidates_from_rpc(
     filters: dict[str, Any] | None = None,
     rpc_fn: str | None = None,
 ):
-    """
-    expected rpc contract (person4-owned):
-    input payload keys:
-      query, team_context_summary, blocker_summaries, k, filters
-    output:
-      list[dict] rows containing entity-ish fields + semantic score from db.
-    """
     fn = (rpc_fn or SUPABASE_RPC_MATCH_FN).strip()
     if not fn:
         raise RuntimeError("SUPABASE_RPC_MATCH_FN empty")
@@ -72,15 +61,12 @@ def fetch_semantic_candidates_from_rpc(
         "filters": filters or {},
     }
 
-    # supabase-py rpc returns APIResponse where .data is usually list[dict]
     res = cl.rpc(fn, payload).execute()
     data = getattr(res, "data", None)
     if data is None:
         return []
     if isinstance(data, list):
         return data
-    # some setups return dict with rows key
     if isinstance(data, dict) and isinstance(data.get("rows"), list):
         return data["rows"]
     return []
-

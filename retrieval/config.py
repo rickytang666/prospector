@@ -6,6 +6,5 @@ OVER_RETRIEVE_FACTOR = 2
 
 ALLOW_LOCAL_EMBED_FALLBACK = True
 LOCAL_DIM = 96
-
 # db retrieval config (person4 embeddings path)
 SUPABASE_RPC_MATCH_FN = "match_entities_for_team"

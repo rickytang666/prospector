@@ -97,6 +97,7 @@ from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
 from retrieval.reasons import build_matched_reasons, build_evidence_snippets
+from retrieval.db_retrieval import fetch_candidates_from_db
 
 _old_rank_candidates = rank_candidates
 _old_get_entity_embedding = get_entity_embedding
@@ -147,7 +148,13 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
     t0 = time.perf_counter()
     _boot()
 
-    raw = semantic_search(_ENTS, query=query, team_context=team_context, k=max(1,k))
+    raw = []
+    try:
+        raw = fetch_candidates_from_db(team_context=team_context, query=query, k=max(1, k * 2), filters=filters)
+    except Exception:
+        raw = []
+    if not raw:
+        raw = semantic_search(_ENTS, query=query, team_context=team_context, k=max(1,k))
     ctx_tags = _ctx_tags(team_context, "") 
     q_tags = _q_terms(query)                
 

@@ -58,4 +58,3 @@ class RankedCandidateResponse:
     query_summary: str
     candidates: list[RankedCandidate]
     retrieval_metadata: dict[str, Any] = field(default_factory=dict)
-
