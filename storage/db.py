@@ -19,5 +19,5 @@ async def insert_chunks(chunks: list[dict]) -> None:
 
 async def get_chunks(team_name: str) -> list[dict]:
     db = get_client()
-    res = db.table("chunks").select("*").eq("team_name", team_name).execute()
+    res = db.table("chunks").select("id, team_name, source_type, source_url, content, created_at").eq("team_name", team_name).execute()
     return res.data
