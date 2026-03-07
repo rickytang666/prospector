@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from storage import db
 from internal_context.ingestion.website import scrape_website
 from internal_context.ingestion.github import scrape_github
+from internal_context.embedding.embedder import embed_chunks
 
 router = APIRouter()
 
@@ -29,6 +30,7 @@ async def ingest(req: IngestRequest):
         print(f"got {len(github_chunks)} chunks from github")
 
     if chunks:
+        chunks = await asyncio.to_thread(embed_chunks, chunks)
         await db.insert_chunks(chunks)
 
     return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks)}
