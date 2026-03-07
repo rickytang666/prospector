@@ -7,8 +7,7 @@ for yc/velocity we use internal info and then visit company website to smart cra
 for other companies from design team sources we smart crawl but make a note of the source
 -> enrich.py (uses LLM to extract structured info from scraped pages)
 
-output
+this is all implemented in an endpoint as seen in run.py (after merging with boiler plate, will register the endpoint)
 
 
-schema.sql
-db.py for supabase integration
+schema.sql for schema on supabase

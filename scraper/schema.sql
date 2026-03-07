@@ -1,4 +1,3 @@
--- entities table (main one)
 create table entities (
     id uuid primary key default gen_random_uuid(),
     name text not null,
@@ -12,7 +11,6 @@ create table entities (
     updated_at timestamptz default now()
 );
 
--- raw scraped docs per entity
 create table entity_documents (
     id uuid primary key default gen_random_uuid(),
     entity_id uuid references entities(id) on delete cascade,
@@ -22,7 +20,6 @@ create table entity_documents (
     fetched_at timestamptz
 );
 
--- waterloo affinity evidence
 create table affinity_evidence (
     id uuid primary key default gen_random_uuid(),
     entity_id uuid references entities(id) on delete cascade,
@@ -31,7 +28,6 @@ create table affinity_evidence (
     source_url text
 );
 
--- contact info
 create table contact_routes (
     id uuid primary key default gen_random_uuid(),
     entity_id uuid references entities(id) on delete cascade,
@@ -39,8 +35,7 @@ create table contact_routes (
     value text not null
 );
 
--- for person 3 (embeddings/ranking)
--- enable pgvector: create extension if not exists vector;
+-- for person 3 (unnecessary rn)
 create table entity_embeddings (
     id uuid primary key default gen_random_uuid(),
     entity_id uuid references entities(id) on delete cascade unique,
@@ -49,7 +44,6 @@ create table entity_embeddings (
     created_at timestamptz default now()
 );
 
--- indexes
 create index idx_entities_type on entities(entity_type);
 create index idx_entities_tags on entities using gin(tags);
 create index idx_affinity_entity on affinity_evidence(entity_id);
