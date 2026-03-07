@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from storage import db
 from internal_context.ingestion.website import scrape_website
+from internal_context.ingestion.github import scrape_github
 
 router = APIRouter()
 
@@ -22,7 +23,10 @@ async def ingest(req: IngestRequest):
         chunks.extend(website_chunks)
         print(f"got {len(website_chunks)} chunks from websites")
 
-    # TODO: github stuff
+    if req.org_url:
+        github_chunks = await asyncio.to_thread(scrape_github, req.org_url, req.team_name)
+        chunks.extend(github_chunks)
+        print(f"got {len(github_chunks)} chunks from github")
 
     if chunks:
         await db.insert_chunks(chunks)
