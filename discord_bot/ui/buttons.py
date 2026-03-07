@@ -1,6 +1,54 @@
 import discord
+from discord.ext import commands
 from ui.embeds import explanation_embed
 from testing_info import MOCK_EXPLANATIONS
+
+
+class CopyButton(discord.ui.Button):
+    def __init__(self, draft: str):
+        super().__init__(label="Copy", style=discord.ButtonStyle.secondary)
+        self.draft = draft
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(self.draft, ephemeral=True)
+
+
+class EditEmailModal(discord.ui.Modal, title="Edit Email Draft"):
+    body = discord.ui.TextInput(
+        label="Email", style=discord.TextStyle.paragraph, max_length=4000
+    )
+
+    def __init__(self, draft: str, bot: commands.Bot):
+        super().__init__()
+        self.body.default = draft
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        edited = self.body.value
+        self.bot.email_draft_cache[interaction.guild_id] = edited
+
+        view = discord.ui.View(timeout=300)
+        view.add_item(CopyButton(edited))
+        await interaction.response.send_message(
+            f"```\n{edited}\n```", view=view, ephemeral=True
+        )
+
+
+class EditEmailButton(discord.ui.Button):
+    def __init__(self, draft: str, bot: commands.Bot):
+        super().__init__(label="Edit Draft", style=discord.ButtonStyle.secondary)
+        self.draft = draft
+        self.bot = bot
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(EditEmailModal(self.draft, self.bot))
+
+
+class EmailView(discord.ui.View):
+    def __init__(self, draft: str, bot: commands.Bot):
+        super().__init__(timeout=300)
+        self.add_item(EditEmailButton(draft, bot))
+        self.add_item(CopyButton(draft))
 
 
 class CandidateButton(discord.ui.Button):

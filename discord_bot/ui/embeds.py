@@ -1,6 +1,45 @@
 import discord
 
 
+def _parse_subject_body(draft: str) -> tuple[str, str]:
+    lines = draft.strip().split("\n", 1)
+    subject_line = lines[0].strip()
+    if subject_line.lower().startswith("subject:"):
+        subject = subject_line[len("subject:"):].strip()
+    else:
+        subject = subject_line
+    body = lines[1].strip() if len(lines) > 1 else ""
+    return subject, body
+
+
+def email_draft_embed(draft: str, organization: str, email_type: str) -> discord.Embed:
+    subject, body = _parse_subject_body(draft)
+    embed = discord.Embed(
+        title=f"{email_type.title()} Draft — {organization}",
+        color=discord.Color.blurple(),
+        timestamp=discord.utils.utcnow(),
+    )
+    embed.add_field(name="Subject", value=subject, inline=False)
+    preview = body if len(body) <= 1000 else body[:997] + "..."
+    embed.add_field(name="Body", value=f"```{preview}```", inline=False)
+    embed.set_footer(text="Edit Draft to modify • Copy for raw text")
+    return embed
+
+
+def email_sent_embed(to_email: str, draft: str) -> discord.Embed:
+    subject, body = _parse_subject_body(draft)
+    embed = discord.Embed(
+        title="Email Sent",
+        color=discord.Color.green(),
+        timestamp=discord.utils.utcnow(),
+    )
+    embed.add_field(name="To", value=to_email, inline=True)
+    embed.add_field(name="Subject", value=subject, inline=True)
+    preview = body if len(body) <= 1000 else body[:997] + "..."
+    embed.add_field(name="Body", value=f"```{preview}```", inline=False)
+    return embed
+
+
 def team_context_embed(context):
     repo_url = context["repo_url"]
 

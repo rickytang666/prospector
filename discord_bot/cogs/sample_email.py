@@ -4,6 +4,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import GEMINI_API_KEY
+from ui.buttons import EmailView
+from ui.embeds import email_draft_embed
 
 genai.configure(api_key=GEMINI_API_KEY)
 _model = genai.GenerativeModel("gemini-2.0-flash")
@@ -29,53 +31,6 @@ Requirements:
 """
     response = await _model.generate_content_async(prompt)
     return response.text
-
-
-class CopyButton(discord.ui.Button):
-    def __init__(self, draft: str):
-        super().__init__(label="Copy", style=discord.ButtonStyle.secondary)
-        self.draft = draft
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(self.draft, ephemeral=True)
-
-
-class EditEmailModal(discord.ui.Modal, title="Edit Email Draft"):
-    body = discord.ui.TextInput(
-        label="Email", style=discord.TextStyle.paragraph, max_length=4000
-    )
-
-    def __init__(self, draft: str, bot: commands.Bot):
-        super().__init__()
-        self.body.default = draft
-        self.bot = bot
-
-    async def on_submit(self, interaction: discord.Interaction):
-        edited = self.body.value
-        self.bot.email_draft_cache[interaction.guild_id] = edited
-
-        view = discord.ui.View(timeout=300)
-        view.add_item(CopyButton(edited))
-        await interaction.response.send_message(
-            f"```\n{edited}\n```", view=view, ephemeral=True
-        )
-
-
-class EditEmailButton(discord.ui.Button):
-    def __init__(self, draft: str, bot: commands.Bot):
-        super().__init__(label="Edit Draft", style=discord.ButtonStyle.secondary)
-        self.draft = draft
-        self.bot = bot
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(EditEmailModal(self.draft, self.bot))
-
-
-class EmailView(discord.ui.View):
-    def __init__(self, draft: str, bot: commands.Bot):
-        super().__init__(timeout=300)
-        self.add_item(EditEmailButton(draft, bot))
-        self.add_item(CopyButton(draft))
 
 
 class SampleEmail(commands.Cog):
@@ -112,7 +67,8 @@ class SampleEmail(commands.Cog):
         draft = await _generate_email(team_context, organization, type.value, subject_line)
         self.bot.email_draft_cache[interaction.guild_id] = draft
 
-        await interaction.followup.send(f"```\n{draft}\n```", view=EmailView(draft, self.bot))
+        embed = email_draft_embed(draft, organization, type.value)
+        await interaction.followup.send(embed=embed, view=EmailView(draft, self.bot))
 
 
 async def setup(bot: commands.Bot):

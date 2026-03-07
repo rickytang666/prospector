@@ -5,19 +5,8 @@ from discord.ext import commands
 from email.mime.text import MIMEText
 
 from config import GMAIL_USER, GMAIL_APP_PASSWORD
-from cogs.sample_email import CopyButton
-
-
-def _parse_draft(draft: str) -> tuple[str, str]:
-    """Split 'Subject: ...\n\nbody...' into (subject, body)."""
-    lines = draft.strip().split("\n", 1)
-    subject_line = lines[0].strip()
-    if subject_line.lower().startswith("subject:"):
-        subject = subject_line[len("subject:"):].strip()
-    else:
-        subject = subject_line
-    body = lines[1].strip() if len(lines) > 1 else ""
-    return subject, body
+from ui.buttons import CopyButton
+from ui.embeds import email_sent_embed, _parse_subject_body
 
 
 async def _send_email(from_email: str, to_email: str, subject: str, body: str) -> None:
@@ -58,7 +47,7 @@ class SendEmail(commands.Cog):
             )
             return
 
-        subject, body = _parse_draft(draft)
+        subject, body = _parse_subject_body(draft)
 
         await interaction.response.defer(ephemeral=True)
 
@@ -68,14 +57,11 @@ class SendEmail(commands.Cog):
             await interaction.followup.send(f"Failed to send email: {e}", ephemeral=True)
             return
 
+        embed = email_sent_embed(to_email, draft)
         view = discord.ui.View(timeout=300)
         view.add_item(CopyButton(draft))
 
-        await interaction.followup.send(
-            f"Email sent to **{to_email}**.\n```\n{draft}\n```",
-            view=view,
-            ephemeral=True,
-        )
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
