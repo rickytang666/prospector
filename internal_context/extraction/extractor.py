@@ -8,7 +8,7 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
 )
 
-MODEL = "openai/gpt-4o-mini"
+MODEL = "google/gemini-2.5-flash-lite"
 MAX_CHUNKS = 20
 MAX_WORDS_PER_CHUNK = 200
 
