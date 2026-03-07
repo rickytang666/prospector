@@ -1,5 +1,5 @@
 import discord
-import google.generativeai as genai
+from google import genai
 from discord import app_commands
 from discord.ext import commands
 
@@ -7,8 +7,7 @@ from config import GEMINI_API_KEY
 from ui.buttons import EmailView
 from ui.embeds import email_draft_embed
 
-genai.configure(api_key=GEMINI_API_KEY)
-_model = genai.GenerativeModel("gemini-2.0-flash")
+_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 async def _generate_email(team_context: dict, organization: str, email_type: str, subject_line: str) -> str:
@@ -29,7 +28,9 @@ Requirements:
 - No placeholders — write a complete, sendable draft
 - {"Request sponsorship or resources" if email_type == "sponsorship" else "Propose collaboration or outreach"}
 """
-    response = await _model.generate_content_async(prompt)
+    response = await _client.aio.models.generate_content(
+        model="gemini-2.0-flash", contents=prompt
+    )
     return response.text
 
 
