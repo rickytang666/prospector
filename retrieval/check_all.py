@@ -65,6 +65,10 @@ def check_empty():
     assert out.retrieval_metadata["mode"] == "phase1_semantic_plus_rules"
     assert out.retrieval_metadata["candidate_source"] in {"supabase", "fallback_local"}
     assert "db_error" in out.retrieval_metadata
+    assert out.retrieval_metadata["db_status"] in {"db_ok", "db_empty", "db_error"}
+    assert "db_raw_row_count" in out.retrieval_metadata
+    assert "db_kept_row_count" in out.retrieval_metadata
+    assert "db_dropped_row_count" in out.retrieval_metadata
 
 
 def check_query_shift():

@@ -96,25 +96,64 @@ def fetch_candidates_from_db(
     k: int,
     filters: dict[str, Any] | None = None,
 ):
+    x = fetch_candidates_from_db_with_meta(team_context=team_context, query=query, k=k, filters=filters)
+    return x["candidates"]
+
+
+def fetch_candidates_from_db_with_meta(
+    team_context: TeamContext,
+    query: str,
+    k: int,
+    filters: dict[str, Any] | None = None,
+):
     blockers = []
     for b in team_context.active_blockers:
         if b.summary:
             blockers.append(b.summary)
 
-    rows = fetch_semantic_candidates_from_rpc(
-        query=query,
-        team_context_summary=team_context.context_summary,
-        blocker_summaries=blockers,
-        k=k,
-        filters=filters or {},
-    )
+    try:
+        rows = fetch_semantic_candidates_from_rpc(
+            query=query,
+            team_context_summary=team_context.context_summary,
+            blocker_summaries=blockers,
+            k=k,
+            filters=filters or {},
+        )
+    except Exception as e:
+        return {
+            "status": "db_error",
+            "error": str(e),
+            "raw_row_count": 0,
+            "kept_row_count": 0,
+            "dropped_row_count": 0,
+            "candidates": [],
+        }
 
     out: list[tuple[Entity, float]] = []
+    dropped = 0
     for r in rows:
         if not isinstance(r, dict):
+            dropped += 1
             continue
         e, sem = _row_to_entity(r)
         if not e.entity_id or not e.name:
+            dropped += 1
             continue
         out.append((e, sem))
-    return out
+    if not out:
+        return {
+            "status": "db_empty",
+            "error": None,
+            "raw_row_count": len(rows),
+            "kept_row_count": 0,
+            "dropped_row_count": dropped,
+            "candidates": [],
+        }
+    return {
+        "status": "db_ok",
+        "error": None,
+        "raw_row_count": len(rows),
+        "kept_row_count": len(out),
+        "dropped_row_count": dropped,
+        "candidates": out,
+    }

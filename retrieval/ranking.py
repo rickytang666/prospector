@@ -22,7 +22,7 @@ from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
 from retrieval.reasons import build_matched_reasons, build_evidence_snippets
-from retrieval.db_retrieval import fetch_candidates_from_db
+from retrieval.db_retrieval import fetch_candidates_from_db_with_meta
 
 _ENTS = []
 
@@ -72,12 +72,17 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
     raw=[]
     src="supabase"
     db_err=None
-    try:
-        raw = fetch_candidates_from_db(team_context=team_context, query=query, k=max(1, k * 2), filters=filters)
-    except Exception as e:
-        raw=[]
-        src="fallback_local"
-        db_err=str(e)
+    db_status="db_ok"
+    db_raw=0
+    db_kept=0
+    db_drop=0
+    m = fetch_candidates_from_db_with_meta(team_context=team_context, query=query, k=max(1, k * 2), filters=filters)
+    db_status = m.get("status", "db_error")
+    db_err = m.get("error")
+    db_raw = int(m.get("raw_row_count", 0) or 0)
+    db_kept = int(m.get("kept_row_count", 0) or 0)
+    db_drop = int(m.get("dropped_row_count", 0) or 0)
+    raw = m.get("candidates") or []
     if not raw:
         src="fallback_local"
         raw = semantic_search(_ENTS, query=query, team_context=team_context, k=max(1,k))
@@ -149,6 +154,10 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
             "corpus_size":corpus_size(),
             "candidate_source":src,
             "db_error":db_err,
+            "db_status":db_status,
+            "db_raw_row_count":db_raw,
+            "db_kept_row_count":db_kept,
+            "db_dropped_row_count":db_drop,
             "weights":dict(RANKING_WEIGHTS),
             "filters_applied":filters or {},
         },
