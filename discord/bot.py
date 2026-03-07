@@ -12,6 +12,7 @@ bot.team_context_cache = {}
 
 async def load_cogs():
     await bot.load_extension("cogs.setup_team")
+    await bot.load_extension("cogs.analyze_team")
 
 @bot.event
 async def on_ready():
