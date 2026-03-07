@@ -65,14 +65,24 @@ def check_empty():
     ctx = get_mock_team_context()
     out = rank_candidates(ctx, "", k=3)
     assert len(out.candidates) <= 3
+    assert out.query_summary
     assert out.retrieval_metadata["mode"] == "phase1_semantic_plus_rules"
-    assert out.retrieval_metadata["candidate_source"] in {"supabase", "fallback_local"}
+    assert out.retrieval_metadata["candidate_source"] in {"supabase", "fallback_local", "fallback_local_db_error", "fallback_local_db_empty"}
     assert "db_error" in out.retrieval_metadata
     assert out.retrieval_metadata["db_status"] in {"db_ok", "db_empty", "db_error"}
+    assert out.retrieval_metadata["query_used"]
     assert "db_raw_row_count" in out.retrieval_metadata
     assert "db_kept_row_count" in out.retrieval_metadata
     assert "db_dropped_row_count" in out.retrieval_metadata
     assert out.retrieval_metadata["confidence"] in {"low", "medium", "high"}
+    assert isinstance(out.retrieval_metadata["used_fallback_local"], bool)
+    if out.retrieval_metadata["candidate_source"] == "supabase":
+        assert out.retrieval_metadata["used_fallback_local"] is False
+    else:
+        assert out.retrieval_metadata["used_fallback_local"] is True
+    assert "requested_k" in out.retrieval_metadata
+    assert "returned_k" in out.retrieval_metadata
+    assert "over_retrieve_k" in out.retrieval_metadata
 
 
 def check_query_shift():
@@ -88,6 +98,20 @@ def check_reindex():
     ents = get_mock_entities()
     n = reindex_entities(ents)
     assert n == len(ents)
+
+def check_dict_team_context():
+    ctx = {
+        "team_name": "UW Orbital",
+        "repo": "x/y",
+        "active_blockers": [{"summary": "map drift", "tags": ["mapping", "telemetry"], "severity": "high"}],
+        "subsystems": ["ground station"],
+        "inferred_support_needs": ["software_credits"],
+        "context_summary": "needs mapping support",
+    }
+    out = rank_candidates(ctx, "mapping", k=4)
+    assert out.retrieval_metadata["mode"] == "phase1_semantic_plus_rules"
+    assert isinstance(out.retrieval_metadata["normalization_warnings"], list)
+    assert len(out.candidates) >= 1
 
 
 def check_scoring():
@@ -142,6 +166,7 @@ def run_all():
         ("empty", check_empty),
         ("query_shift", check_query_shift),
         ("reindex", check_reindex),
+        ("dict_ctx", check_dict_team_context),
         ("scoring", check_scoring),
         ("db_norm", check_db_norm_helpers),
     ]
@@ -160,5 +185,3 @@ def run_all():
 
 if __name__ == "__main__":
     run_all()
-
-# python3 -m retrieval.check_all
