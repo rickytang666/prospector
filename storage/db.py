@@ -13,7 +13,8 @@ def get_client() -> Client:
 
 async def insert_chunks(chunks: list[dict]) -> None:
     db = get_client()
-    db.table("chunks").insert(chunks).execute()
+    rows = [c.model_dump(exclude_none=True) for c in chunks]
+    db.table("chunks").insert(rows).execute()
 
 
 async def get_chunks(team_name: str) -> list[dict]:
