@@ -1,7 +1,7 @@
 import asyncio
 import discord
 from discord.ext import commands
-from config import TOKEN
+from config import TOKEN, GUILD_ID
 
 intents = discord.Intents.default()
 
@@ -15,8 +15,10 @@ async def load_cogs():
 
 @bot.event
 async def on_ready():
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    await bot.tree.sync(guild=guild)
     print(f"Logged in as {bot.user}")
-    await bot.tree.sync()
 
 async def main():
     async with bot:
