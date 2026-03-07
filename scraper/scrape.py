@@ -149,9 +149,11 @@ def smart_crawl(url, company_name):
 
 
 # hybrid approach - smart crawl and profile handlers (velocity/yc vs design team)
-def scrape():
+def scrape(limit=None):
     with open(companies_file) as f:
         companies = json.load(f)
+    if limit:
+        companies = companies[:limit]
 
     raw_dir.mkdir(parents=True, exist_ok=True)
 

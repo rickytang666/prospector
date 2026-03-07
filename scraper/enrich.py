@@ -96,9 +96,11 @@ def slug(name):
     return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
 
 #enrich to entities.json
-def enrich():
+def enrich(limit=None):
     with open(companies_file) as f:
         companies = json.load(f)
+    if limit:
+        companies = companies[:limit]
 
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     entities = []
