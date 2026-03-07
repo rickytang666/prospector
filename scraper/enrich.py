@@ -1,11 +1,17 @@
 import json
 import os
+import time
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
+from google.genai import errors as genai_errors
 
 load_dotenv()
+
+# Throttle and retry to avoid Gemini 429 rate limits
+ENRICH_DELAY_SECONDS = float(os.environ.get("ENRICH_DELAY_SECONDS", "1.5"))
+ENRICH_MAX_RETRIES = int(os.environ.get("ENRICH_MAX_RETRIES", "5"))
 
 data_dir = Path("data")
 raw_dir = data_dir / "raw_pages"
@@ -56,11 +62,33 @@ def get_affinity(company):
 
 
 
+def _generate_with_retry(client, prompt_text):
+    """Call Gemini with retries on 429 (rate limit)."""
+    last_err = None
+    for attempt in range(ENRICH_MAX_RETRIES):
+        try:
+            return client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt_text,
+                config={"response_mime_type": "application/json"},
+            )
+        except (genai_errors.ClientError, genai_errors.ServerError) as e:
+            last_err = e
+            code = getattr(e, "code", None)
+            is_rate_limit = code == 429 or "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+            if is_rate_limit and attempt < ENRICH_MAX_RETRIES - 1:
+                wait = (2 ** attempt) + 1  # 2, 3, 5, 9, 17 sec
+                print(f"  rate limited (429), waiting {wait}s before retry {attempt + 2}/{ENRICH_MAX_RETRIES}...")
+                time.sleep(wait)
+            else:
+                raise
+    raise last_err
+
+
 def build_entity(company, scraped_text, client):
-    resp = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=extraction_prompt.format(name=company["name"], content=scraped_text[:30000]),
-        config={"response_mime_type": "application/json"},
+    resp = _generate_with_retry(
+        client,
+        extraction_prompt.format(name=company["name"], content=scraped_text[:30000]),
     )
 
     try:
@@ -119,10 +147,22 @@ def enrich(limit=None):
     if limit:
         companies = companies[:limit]
 
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-    entities = []
+    # Resume: load existing entities so we don't re-do work after a crash
+    if entities_file.exists():
+        with open(entities_file) as f:
+            entities = json.load(f)
+        if not isinstance(entities, list):
+            entities = []
+    else:
+        entities = []
+    start_index = len(entities)
+    if start_index > 0:
+        print(f"Resuming from company {start_index + 1}/{len(companies)} (found {start_index} existing entities)")
 
-    for i, company in enumerate(companies):
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+    for i in range(start_index, len(companies)):
+        company = companies[i]
         name = company["name"]
         s = slug(name)
         pages_file = raw_dir / s / "pages.json"
@@ -146,14 +186,20 @@ def enrich(limit=None):
                 "support_types": [],
                 "contact_routes": [],
             })
+            with open(entities_file, "w") as f:
+                json.dump(entities, f, indent=2)
             continue
 
         print(f"[{i+1}/{len(companies)}] {name} - enriching...")
         entity = build_entity(company, scraped_text, client)
         entities.append(entity)
+        # Throttle to avoid Gemini 429; skip delay on last item
+        if i < len(companies) - 1 and ENRICH_DELAY_SECONDS > 0:
+            time.sleep(ENRICH_DELAY_SECONDS)
+        # Checkpoint so we can resume after a crash
+        with open(entities_file, "w") as f:
+            json.dump(entities, f, indent=2)
 
-    with open(entities_file, "w") as f:
-        json.dump(entities, f, indent=2)
     print(f"\nsaved {len(entities)} entities to {entities_file}")
 
 
