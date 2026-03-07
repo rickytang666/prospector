@@ -59,7 +59,7 @@ HTML:
     return companies
 
 
-# velocity has links in the html, just pull them with bs4
+# velocity - scrape with bs4
 def extract_velocity(html, source):
     soup = BeautifulSoup(html, "html.parser")
     companies = []
@@ -83,7 +83,7 @@ def extract_velocity(html, source):
     return companies
 
 
-# yc has a public api
+# yc public api
 def extract_yc(source):
     all_companies = []
     page = 1

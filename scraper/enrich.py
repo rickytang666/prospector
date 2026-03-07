@@ -95,3 +95,49 @@ def build_entity(company, scraped_text, client):
 def slug(name):
     return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
 
+#enrich to entities.json
+def enrich():
+    with open(companies_file) as f:
+        companies = json.load(f)
+
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    entities = []
+
+    for i, company in enumerate(companies):
+        name = company["name"]
+        s = slug(name)
+        pages_file = raw_dir / s / "pages.json"
+
+        scraped_text = ""
+        if pages_file.exists():
+            with open(pages_file) as f:
+                pages = json.load(f)
+            scraped_text = "\n\n".join(p["raw_text"] for p in pages.values() if p.get("raw_text"))
+
+        if not scraped_text:
+            print(f"[{i+1}/{len(companies)}] {name} - no scraped content, basic entity")
+            entities.append({
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "entity_type": "provider",
+                "canonical_url": company.get("url"),
+                "source_urls": [company.get("source_url", "")],
+                "waterloo_affinity_evidence": get_affinity(company),
+                "tags": [],
+                "support_types": [],
+                "contact_routes": [],
+            })
+            continue
+
+        print(f"[{i+1}/{len(companies)}] {name} - enriching...")
+        entity = build_entity(company, scraped_text, client)
+        entities.append(entity)
+
+    with open(entities_file, "w") as f:
+        json.dump(entities, f, indent=2)
+    print(f"\nsaved {len(entities)} entities to {entities_file}")
+
+
+if __name__ == "__main__":
+    enrich()
+

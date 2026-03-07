@@ -1,0 +1,104 @@
+[
+  {
+    "id": "e08ea0cc-dc07-420b-8baa-b8b50e3f907c",
+    "name": "ATS",
+    "entity_type": "provider",
+    "canonical_url": "https://www.atsautomation.com/",
+    "summary": "ATS Corporation is a global automation and technology leader that supports companies in bringing products to market across various industries. They provide automation solutions and services to customers in life sciences, food & beverage, transportation, energy, and consumer product markets.",
+    "source_urls": [
+      "https://www.watonomous.ca/sponsor"
+    ],
+    "tags": [
+      "automation",
+      "technology",
+      "life sciences",
+      "food & beverage",
+      "transportation",
+      "energy",
+      "consumer products",
+      "robotics",
+      "engineering"
+    ],
+    "support_types": [
+      "technical_mentorship",
+      "sponsorship",
+      "other"
+    ],
+    "waterloo_affinity_evidence": [
+      {
+        "type": "team_sponsor",
+        "text": "Listed as sponsor for WATonomous",
+        "source_url": "https://www.watonomous.ca/sponsor"
+      }
+    ],
+    "contact_routes": []
+  },
+  {
+    "id": "7b1578e7-81f5-4a65-8af5-05abedd9973c",
+    "name": "Applyboard",
+    "entity_type": "provider",
+    "canonical_url": "https://velocityincubator.com/company/applyboard",
+    "summary": "ApplyBoard is an all-in-one application platform that helps international students apply to universities and colleges in North America. They connect students, partner institutions, and recruitment partners on a single platform to make education accessible globally.",
+    "source_urls": [
+      "https://velocityincubator.com/companies/"
+    ],
+    "tags": [
+      "edtech",
+      "data analytics",
+      "software",
+      "govtech"
+    ],
+    "support_types": [
+      "api_access",
+      "other"
+    ],
+    "waterloo_affinity_evidence": [
+      {
+        "type": "startup_incubator",
+        "text": "Velocity incubator company (University of Waterloo)",
+        "source_url": "https://velocityincubator.com/companies/"
+      }
+    ],
+    "contact_routes": [
+      {
+        "type": "email",
+        "value": "communications@applyboard.com"
+      }
+    ]
+  },
+  {
+    "id": "9e403e06-ec6d-48f5-8a96-4842c28644c2",
+    "name": "Indexable",
+    "entity_type": "provider",
+    "canonical_url": "https://www.ycombinator.com/companies/indexable",
+    "summary": "Indexable provides sandbox infrastructure for AI agents, offering full-environment forks and snapshots across files, processes, memory, and databases.",
+    "source_urls": [
+      "https://www.ycombinator.com/companies"
+    ],
+    "tags": [
+      "artificial intelligence",
+      "ai agents",
+      "infrastructure",
+      "developer tools",
+      "virtualization"
+    ],
+    "support_types": [
+      "api_access",
+      "tooling",
+      "developer_tools"
+    ],
+    "waterloo_affinity_evidence": [
+      {
+        "type": "yc_company",
+        "text": "Y Combinator company",
+        "source_url": "https://www.ycombinator.com/companies"
+      }
+    ],
+    "contact_routes": [
+      {
+        "type": "contact_page",
+        "value": "https://ix.dev"
+      }
+    ]
+  }
+]

@@ -148,6 +148,7 @@ def smart_crawl(url, company_name):
     return pages
 
 
+# hybrid approach - smart crawl and profile handlers (velocity/yc vs design team)
 def scrape():
     with open(companies_file) as f:
         companies = json.load(f)
