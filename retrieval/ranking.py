@@ -110,6 +110,17 @@ def _src_from_db(db_status: str, has_rows: bool):
         return "fallback_local_db_empty"
     return "fallback_local"
 
+def _dedupe_candidates(rows: list[RankedCandidate]):
+    best = {}
+    for c in rows:
+        key = ((c.name or "").strip().lower(), (c.entity_type or "").strip().lower())
+        prev = best.get(key)
+        if prev is None or c.overall_score > prev.overall_score:
+            best[key] = c
+    out = list(best.values())
+    out.sort(key=lambda x: (-x.overall_score, x.name.lower(), x.entity_id))
+    return out
+
 def _ctx_obj(team_context: TeamContext | dict[str, Any]):
     warns=[]
     if isinstance(team_context, TeamContext):
@@ -217,7 +228,7 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
             waterloo_affinity_evidence=e.waterloo_affinity_evidence,
         ))
 
-    out.sort(key=lambda x: (-x.overall_score, x.name.lower(), x.entity_id))
+    out = _dedupe_candidates(out)
     out = [x for x in out if x.overall_score >= MIN_RESULT_SCORE]
     out = out[:kk]
     top = out[0].overall_score if out else 0.0
