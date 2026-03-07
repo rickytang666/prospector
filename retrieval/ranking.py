@@ -10,14 +10,6 @@ from retrieval.models import (
     ScoreBreakdown,
     TeamContext,
 )
-
-def _q_terms(q: str):
-    s=set()
-    for w in (q or "").lower().replace("?"," ").replace(","," ").split():
-        if len(w)>2 and w not in {"the","and","for","our","with","who","can","help","need","to","of"}:
-            s.add(w)
-    return s
-
 from retrieval.config import RANKING_WEIGHTS, DEFAULT_K, LOW_CONFIDENCE_TOP1, MEDIUM_CONFIDENCE_TOP1, MIN_RESULT_SCORE
 from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
@@ -26,6 +18,13 @@ from retrieval.reasons import build_matched_reasons, build_evidence_snippets
 from retrieval.db_retrieval import fetch_candidates_from_db_with_meta
 
 _ENTS = []
+
+def _q_terms(q: str):
+    s=set()
+    for w in (q or "").lower().replace("?"," ").replace(","," ").split():
+        if len(w)>2 and w not in {"the","and","for","our","with","who","can","help","need","to","of"}:
+            s.add(w)
+    return s
 
 def _boot():
     global _ENTS
@@ -158,7 +157,6 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
     kk2 = max(1, kk * 2)
 
     raw=[]
-    src="supabase"
     db_err=None
     db_status="db_ok"
     db_raw=0
@@ -175,48 +173,38 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
     if not raw:
         raw = semantic_search(_ENTS, query=q, team_context=tc, k=kk)
     ctx_tags = _ctx_tags(tc, "")
-    q_tags = _q_terms(q)                
+    q_tags = _q_terms(q)
 
     out=[]
     for e,sem in raw:
         if not _entity_ok(e, filters):
             continue
-
         et = _s(e.tags)
         n = _s(tc.inferred_support_needs)
         h = _s(e.support_types)
         suphits = sorted(list(n.intersection(h)))
-
         q_ov = et.intersection(q_tags) if q_tags else set()
         c_ov = et.intersection(ctx_tags)
-
         ov = sorted(list(q_ov if q_ov else c_ov))
-
         q_tag_score = _jac(et, q_tags) if q_tags else 0.0
         ctx_tag_score = _jac(et, ctx_tags)
-
         t = (0.7 * q_tag_score + 0.3 * ctx_tag_score) if q_tags else ctx_tag_score
-
         s = _sup(e,tc)
         w = _wat(e)
         allv = _compose(sem,t,s,w)
-
         if q_tags:
             if q_ov:
                 allv += 0.18 * (len(q_ov) / max(1, len(q_tags)))
             else:
                 allv -= 0.08
         allv = clamp01(allv)
-
         sb = ScoreBreakdown(
             semantic_score=round(sem,4),
             tag_overlap_score=round(t,4),
             support_fit_score=round(s,4),
             waterloo_affinity_score=round(w,4),
         )
-
         wn = e.waterloo_affinity_evidence[0].text if e.waterloo_affinity_evidence else None
-
         out.append(RankedCandidate(
             entity_id=e.entity_id,
             name=e.name,
@@ -232,7 +220,6 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
     out.sort(key=lambda x: (-x.overall_score, x.name.lower(), x.entity_id))
     out = [x for x in out if x.overall_score >= MIN_RESULT_SCORE]
     out = out[:kk]
-
     top = out[0].overall_score if out else 0.0
     conf = "low"
     if top >= MEDIUM_CONFIDENCE_TOP1:
