@@ -1,3 +1,4 @@
+#misc scraping
 import httpx
 import json
 import time
@@ -5,11 +6,21 @@ from pathlib import Path
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 
+# smart crawl imports
+import os
+from urllib.parse import urljoin, urlparse
+from dotenv import load_dotenv
+from google import genai
+
+load_dotenv()
+
 import trafilatura
 
 data_dir = Path("data")
 companies_file = data_dir / "companies.json"
 raw_dir = data_dir / "raw_pages"
+
+MAX_PAGES = 5
 
 
 def slug(name):
@@ -68,6 +79,73 @@ def scrape_yc_profile(company):
         "raw_text": profile_text,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# smart scraping -> look for other links 
+def get_links(html, base_url):
+    soup = BeautifulSoup(html, "html.parser")
+    base_domain = urlparse(base_url).netloc
+    links = []
+    for a in soup.find_all("a", href=True):
+        full = urljoin(base_url, a["href"])
+        if urlparse(full).netloc == base_domain and full != base_url:
+            links.append(full)
+    return list(set(links))
+
+
+def pick_best_links(links, company_name):
+    if not links:
+        return []
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    prompt = f"""From {company_name}'s website, pick links most likely to have useful info about what the company does, their products, team, or mission.
+Return a JSON array of the best URLs (max 4). Skip privacy policy, terms, login, careers, etc.
+
+Links:
+{json.dumps(links[:50])}"""
+
+    try:
+        resp = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config={"response_mime_type": "application/json"},
+        )
+        return json.loads(resp.text)[:4]
+    except:
+        return links[:3]
+
+
+def smart_crawl(url, company_name):
+    pages = {}
+    raw_html, text = scrape_url(url)
+    if not raw_html:
+        return pages
+
+    if text:
+        pages["/"] = {
+            "url": url,
+            "title": company_name,
+            "raw_text": text,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    links = get_links(raw_html, url)
+    best = pick_best_links(links, company_name)
+
+    for link in best:
+        if len(pages) >= MAX_PAGES:
+            break
+        time.sleep(0.5)
+        _, page_text = scrape_url(link)
+        if page_text:
+            path = urlparse(link).path or link
+            pages[path] = {
+                "url": link,
+                "title": f"{company_name} - {path}",
+                "raw_text": page_text,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+    return pages
 
 
 def scrape():
