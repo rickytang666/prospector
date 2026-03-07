@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from pathlib import Path
 import json
 import os
+import shutil
 from dotenv import load_dotenv
 from supabase import create_client
 
@@ -126,10 +127,116 @@ def store_to_supabase(entities, raw_dir):
     return count
 
 
+def _slug(name: str) -> str:
+    return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
+
+
+def _dedupe_companies(companies: list[dict]) -> list[dict]:
+    seen: dict[str, dict] = {}
+    for c in companies:
+        key = (c.get("name") or "").strip().lower()
+        if key and key not in seen:
+            seen[key] = c
+    return list(seen.values())
+
+
+def _dedupe_entities(entities: list[dict]) -> list[dict]:
+    by_name: dict[str, dict] = {}
+    for e in entities:
+        if not isinstance(e, dict):
+            continue
+        name = (e.get("name") or "").strip().lower()
+        if not name:
+            continue
+        existing = by_name.get(name)
+        if existing is None:
+            by_name[name] = e
+            continue
+
+        def score(x: dict) -> int:
+            s = len(str(x.get("summary") or ""))
+            s += len(x.get("tags") or []) * 2
+            s += len(x.get("support_types") or []) * 2
+            s += len(x.get("waterloo_affinity_evidence") or []) * 2
+            s += len(x.get("contact_routes") or [])
+            return s
+        if score(e) > score(existing):
+            by_name[name] = e
+    return list(by_name.values())
+
+
+def run_cleanup(companies: bool = True, entities: bool = True, raw_pages: bool = True) -> dict:
+    stats = {"companies_removed": 0, "entities_removed": 0, "raw_pages_removed": 0}
+
+    companies_file = data_dir / "companies.json"
+    entities_file = data_dir / "entities.json"
+    raw_dir = data_dir / "raw_pages"
+
+    if companies and companies_file.exists():
+        with open(companies_file) as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            before = len(data)
+            deduped = _dedupe_companies(data)
+            with open(companies_file, "w") as f:
+                json.dump(deduped, f, indent=2)
+            stats["companies_removed"] = before - len(deduped)
+
+    if entities and entities_file.exists():
+        with open(entities_file) as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            before = len(data)
+            deduped = _dedupe_entities(data)
+            with open(entities_file, "w") as f:
+                json.dump(deduped, f, indent=2)
+            stats["entities_removed"] = before - len(deduped)
+
+    if raw_pages and raw_dir.exists():
+        companies_list = []
+        if companies_file.exists():
+            with open(companies_file) as f:
+                companies_list = json.load(f)
+        if isinstance(companies_list, list):
+            valid_slugs = {_slug(c.get("name") or "") for c in companies_list if c.get("name")}
+        else:
+            valid_slugs = set()
+        removed = 0
+        if valid_slugs: 
+            for path in list(raw_dir.iterdir()):
+                if path.is_dir() and path.name not in valid_slugs:
+                    shutil.rmtree(path, ignore_errors=True)
+                    removed += 1
+        stats["raw_pages_removed"] = removed
+
+    return stats
+
+
+class CleanupParams(BaseModel):
+    companies: bool = True
+    entities: bool = True
+    raw_pages: bool = True
+
+
+# clean up 
+@router.post("/cleanup")
+def cleanup(
+    params: CleanupParams = CleanupParams(),
+    _auth: None = Depends(require_scraper_secret),
+):
+
+    stats = run_cleanup(
+        companies=params.companies,
+        entities=params.entities,
+        raw_pages=params.raw_pages,
+    )
+    return {"status": "done", **stats}
+
+
 class RunParams(BaseModel):
-    sources: list[dict] | None = None  # custom sources list, uses default sources.json if not set
-    limit: int | None = None  # max companies to scrape/enrich
-    enrich_only: bool = False  # if True, skip gather & scrape (use existing companies.json + raw_pages)
+    sources: list[dict] | None = None   
+    limit: int | None = None  
+    enrich_only: bool = False  
 
 
 @router.post("/run")
