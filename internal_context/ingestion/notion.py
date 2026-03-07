@@ -100,19 +100,43 @@ def fetch_official(page_id: str) -> str | None:
     return "\n".join(lines) if lines else None
 
 
-def extract_text_unofficial(blocks: dict) -> str:
-    """parse blocks from loadPageChunk response"""
+def extract_text_unofficial(blocks: dict) -> tuple[str, list[str]]:
+    """parse blocks from loadPageChunk response, also return child page ids"""
     lines = []
+    child_page_ids = []
     for block_id, block in blocks.items():
         value = block.get("value", {})
-        if value.get("type") not in BLOCK_TYPES:
+        btype = value.get("type")
+        if btype == "page" and value.get("id") and value.get("parent_id"):
+            child_page_ids.append(value["id"])
             continue
-        # [[text, annotations], ...] in properties.title
+        if btype not in BLOCK_TYPES:
+            continue
         title = value.get("properties", {}).get("title", [])
         text = "".join(segment[0] for segment in title if isinstance(segment, list))
         if text.strip():
             lines.append(text.strip())
-    return "\n".join(lines)
+    return "\n".join(lines), child_page_ids
+
+
+def scrape_unofficial(page_id: str, visited: set, max_pages: int = 30) -> str:
+    if page_id in visited or len(visited) >= max_pages:
+        return ""
+    visited.add(page_id)
+
+    data = load_page_chunk(page_id)
+    if not data:
+        return ""
+
+    text, child_ids = extract_text_unofficial(data.get("recordMap", {}).get("block", {}))
+    parts = [text] if text.strip() else []
+
+    for child_id in child_ids:
+        child_text = scrape_unofficial(child_id, visited, max_pages)
+        if child_text.strip():
+            parts.append(child_text)
+
+    return "\n".join(parts)
 
 
 def scrape_notion(page_url: str, team_name: str) -> list[Chunk]:
@@ -124,19 +148,20 @@ def scrape_notion(page_url: str, team_name: str) -> list[Chunk]:
     print(f"fetching notion page {page_id}")
     text = None
 
-    # try official api first if token is available
+    # try official api first
     if NOTION_TOKEN:
         print("trying official notion api...")
         text = fetch_official(page_id)
         if text:
             print("got text from official api")
 
-    # fall back to unofficial
+    # dfs
     if not text:
         print("falling back to unofficial notion api...")
-        data = load_page_chunk(page_id)
-        if data:
-            text = extract_text_unofficial(data.get("recordMap", {}).get("block", {}))
+        visited: set = set()
+        text = scrape_unofficial(page_id, visited)
+        if text:
+            print(f"got text from {len(visited)} notion pages (unofficial)")
 
     if not text or not text.strip():
         print(f"no text extracted from notion page {page_id}")
