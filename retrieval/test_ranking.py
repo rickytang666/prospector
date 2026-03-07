@@ -57,3 +57,12 @@ def test_query_shift_changes_some_results():
     b_ids = {x.entity_id for x in b.candidates}
 
     assert a.candidates[0].entity_id != b.candidates[0].entity_id
+
+
+def test_reindex_entities_smoke():
+    from retrieval.mock_data import get_mock_entities
+    from retrieval.ranking import reindex_entities
+
+    ents = get_mock_entities()
+    n = reindex_entities(ents)
+    assert n == len(ents)

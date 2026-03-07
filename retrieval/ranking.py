@@ -95,6 +95,7 @@ def reindex_entities(entities: list[Entity]) -> int: return len(entities)
 from retrieval.config import RANKING_WEIGHTS, DEFAULT_K
 from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
+from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
 
 _old_rank_candidates = rank_candidates
 _old_get_entity_embedding = get_entity_embedding
@@ -110,11 +111,7 @@ def _boot():
         embed_entities(_ENTS)
 
 def _s(xs):
-    o=set()
-    for x in xs:
-        x2=(x or "").strip().lower()
-        if x2: o.add(x2)
-    return o
+    return to_set(xs)
 
 def _ctx_tags(ctx: TeamContext, q: str):
     c=set()
@@ -128,31 +125,16 @@ def _ctx_tags(ctx: TeamContext, q: str):
     return c
 
 def _jac(a,b):
-    if not a or not b: return 0.0
-    u=len(a.union(b))
-    if u==0: return 0.0
-    return len(a.intersection(b))/u
+    return jacc(a,b)
 
 def _sup(e: Entity, ctx: TeamContext):
-    n=_s(ctx.inferred_support_needs)
-    if not n: return 0.0
-    h=_s(e.support_types)
-    return len(n.intersection(h))/max(1,len(n))
+    return support_fit(e, ctx)
 
 def _wat(e: Entity):
-    ev = e.waterloo_affinity_evidence or []
-    if not ev: return 0.0
-    st={"team_sponsor","official_page","official_partner"}
-    if len(ev)>=2:
-        for i in ev:
-            if (i.type or "").lower() in st: return 1.0
-        return 0.8
-    if (ev[0].type or "").lower() in st: return 0.6
-    return 0.3
+    return waterloo_affinity(e)
 
 def _compose(sem,tag,sup,wat):
-    w=RANKING_WEIGHTS
-    return w["semantic"]*sem + w["tag_overlap"]*tag + w["support_fit"]*sup + w["waterloo_affinity"]*wat
+    return compose_scores(sem, tag, sup, wat)
 
 def _reasons(sb,ov,suphits,wn):
     r=[]
@@ -209,8 +191,7 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
                 allv += 0.18 * (len(q_ov) / max(1, len(q_tags)))
             else:
                 allv -= 0.08
-        if allv < 0.0: allv = 0.0
-        if allv > 1.0: allv = 1.0
+        allv = clamp01(allv)
 
         sb = ScoreBreakdown(
             semantic_score=round(sem,4),
