@@ -31,27 +31,29 @@ def candidates_embed(candidates, query):
     return embed
 
 
-def explanation_embed(data):
+def explanation_embed(data, team_name=None):
     embed = discord.Embed(
         title=data["entity_name"],
-        color=discord.Color.green()
+        description=f"Match analysis for **{team_name}**" if team_name else None,
+        color=discord.Color.green(),
+        timestamp=discord.utils.utcnow()
     )
 
     embed.add_field(
         name="Why it helps",
-        value="\n".join(f"• {r}" for r in data["why_it_helps"]),
+        value="\n".join(f"> {r}" for r in data["why_it_helps"]),
         inline=False
     )
 
     embed.add_field(
         name="Why they may care",
-        value="\n".join(f"• {r}" for r in data["why_they_may_care"]),
+        value="\n".join(f"> {r}" for r in data["why_they_may_care"]),
         inline=False
     )
 
     embed.add_field(
         name="Recommended ask",
-        value=data["recommended_ask"],
+        value=f"```{data['recommended_ask']}```",
         inline=False
     )
 
@@ -77,7 +79,9 @@ class CandidateButton(discord.ui.Button):
             )
             return
 
-        embed = explanation_embed(explanation)
+        team_context = interaction.client.team_context_cache.get(interaction.guild_id)
+        team_name = team_context["team_name"] if team_context else None
+        embed = explanation_embed(explanation, team_name=team_name)
         await interaction.response.send_message(embed=embed)
 
 

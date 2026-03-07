@@ -2,33 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from testing_info import MOCK_EXPLANATIONS
-
-
-def explanation_embed(data):
-    embed = discord.Embed(
-        title=data["entity_name"],
-        color=discord.Color.green()
-    )
-
-    embed.add_field(
-        name="Why it helps",
-        value="\n".join(f"• {r}" for r in data["why_it_helps"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Why they may care",
-        value="\n".join(f"• {r}" for r in data["why_they_may_care"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Recommended ask",
-        value=data["recommended_ask"],
-        inline=False
-    )
-
-    return embed
+from cogs.find_support import explanation_embed
 
 
 class ExplainMatch(commands.Cog):
@@ -57,7 +31,7 @@ class ExplainMatch(commands.Cog):
             )
             return
 
-        embed = explanation_embed(explanation)
+        embed = explanation_embed(explanation, team_name=team_context["team_name"])
         await interaction.followup.send(embed=embed)
 
 
