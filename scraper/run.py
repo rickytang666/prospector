@@ -33,6 +33,8 @@ def require_scraper_secret(x_scraper_secret: str | None = Header(None, alias="X-
 
 def is_valid_entity(entity: dict) -> bool:
     """Return False if entity is empty or invalid and should not be stored."""
+    if not isinstance(entity, dict):
+        return False
     name = entity.get("name")
     if not name or not isinstance(name, str):
         return False
@@ -41,13 +43,17 @@ def is_valid_entity(entity: dict) -> bool:
     # require at least one meaningful field beyond name (avoid junk rows)
     if entity.get("summary") and str(entity["summary"]).strip():
         return True
-    if entity.get("tags") and len(entity["tags"]) > 0:
+    tags = entity.get("tags")
+    if isinstance(tags, list) and len(tags) > 0:
         return True
-    if entity.get("support_types") and len(entity["support_types"]) > 0:
+    support_types = entity.get("support_types")
+    if isinstance(support_types, list) and len(support_types) > 0:
         return True
-    if entity.get("waterloo_affinity_evidence") and len(entity["waterloo_affinity_evidence"]) > 0:
+    evidence = entity.get("waterloo_affinity_evidence")
+    if isinstance(evidence, list) and len(evidence) > 0:
         return True
-    if entity.get("contact_routes") and len(entity["contact_routes"]) > 0:
+    routes = entity.get("contact_routes")
+    if isinstance(routes, list) and len(routes) > 0:
         return True
     if entity.get("canonical_url") and str(entity["canonical_url"]).strip():
         return True
@@ -148,11 +154,21 @@ def run_pipeline(
 
     entities_file = data_dir / "entities.json"
     entities = json.load(open(entities_file)) if entities_file.exists() else []
+    valid_entities = [e for e in entities if is_valid_entity(e)]
+    skipped = len(entities) - len(valid_entities)
+    if skipped:
+        print(f"Skipped {skipped} empty/invalid entities")
 
     raw_dir = data_dir / "raw_pages"
-    stored = store_to_supabase(entities, raw_dir)
+    stored = store_to_supabase(valid_entities, raw_dir)
 
-    return {"status": "done", "count": len(entities), "stored_to_db": stored}
+    return {
+        "status": "done",
+        "count": len(entities),
+        "valid": len(valid_entities),
+        "skipped": skipped,
+        "stored_to_db": stored,
+    }
 
 
 # standalone mode
@@ -167,9 +183,13 @@ if __name__ == "__main__":
         enrich(limit=args.limit)
         entities_file = data_dir / "entities.json"
         entities = json.load(open(entities_file)) if entities_file.exists() else []
+        valid_entities = [e for e in entities if is_valid_entity(e)]
+        skipped = len(entities) - len(valid_entities)
+        if skipped:
+            print(f"Skipped {skipped} empty/invalid entities")
         raw_dir = data_dir / "raw_pages"
-        stored = store_to_supabase(entities, raw_dir)
-        print(f"Done. {len(entities)} entities, {stored} stored to DB.")
+        stored = store_to_supabase(valid_entities, raw_dir)
+        print(f"Done. {len(entities)} entities ({len(valid_entities)} valid), {stored} stored to DB.")
     else:
         from fastapi import FastAPI
         import uvicorn
