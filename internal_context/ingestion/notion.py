@@ -37,6 +37,27 @@ def load_page_chunk(page_id: str) -> dict | None:
         print(f"failed to fetch notion page {page_id}: {e}")
         return None
 
+BLOCK_TYPES = {
+    "text", "header", "sub_header", "sub_sub_header",
+    "bulleted_list", "numbered_list", "toggle",
+    "quote", "code", "callout",
+}
+
+
+def extract_text(blocks: dict) -> str:
+    lines = []
+    for block_id, block in blocks.items():
+        value = block.get("value", {})
+        if value.get("type") not in BLOCK_TYPES:
+            continue
+        # [[text, annotations], ...] in properties.title
+        title = value.get("properties", {}).get("title", [])
+        text = "".join(segment[0] for segment in title if isinstance(segment, list))
+        if text.strip():
+            lines.append(text.strip())
+    return "\n".join(lines)
+
+
 def scrape_notion(page_url: str, team_name: str) -> list[Chunk]:
     page_id = parse_page_id(page_url)
     if not page_id:
