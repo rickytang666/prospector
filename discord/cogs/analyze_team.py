@@ -5,10 +5,20 @@ from testing_info import MOCK_TEAM_CONTEXT
 
 
 def team_context_embed(context):
+    repo_url = context["repo_url"]
+
     embed = discord.Embed(
-        title=f"{context['team_name']} - Team Analysis",
-        color=discord.Color.blurple()
+        title=f"{context['team_name']} — Team Analysis",
+        description=f"[{repo_url}]({repo_url})",
+        color=discord.Color.blurple(),
+        timestamp=discord.utils.utcnow()
     )
+
+    # Extract GitHub owner for thumbnail (e.g. https://github.com/UWOrbital/... -> UWOrbital)
+    parts = repo_url.rstrip("/").split("/")
+    if len(parts) >= 4 and "github.com" in parts:
+        owner = parts[parts.index("github.com") + 1]
+        embed.set_thumbnail(url=f"https://github.com/{owner}.png")
 
     embed.add_field(
         name="Subsystems",
@@ -24,7 +34,7 @@ def team_context_embed(context):
 
     embed.add_field(
         name="Tech Stack",
-        value=", ".join(context["tech_stack"]),
+        value=" ".join(f"`{t}`" for t in context["tech_stack"]),
         inline=False
     )
 
