@@ -36,3 +36,21 @@ def load_page_chunk(page_id: str) -> dict | None:
     except Exception as e:
         print(f"failed to fetch notion page {page_id}: {e}")
         return None
+
+def scrape_notion(page_url: str, team_name: str) -> list[Chunk]:
+    page_id = parse_page_id(page_url)
+    if not page_id:
+        print(f"couldn't parse notion page id from {page_url}")
+        return []
+
+    print(f"fetching notion page {page_id}")
+    data = load_page_chunk(page_id)
+    if not data:
+        return []
+
+    text = extract_text(data.get("recordMap", {}).get("block", {}))
+    if not text.strip():
+        print(f"no text extracted from notion page {page_id}")
+        return []
+
+    return chunk_text(text, team_name, "notion", page_url)
