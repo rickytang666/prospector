@@ -1,0 +1,9 @@
+pydantic
+httpx
+beautifulsoup4
+trafilatura
+google-genai
+python-dotenv
+fastapi
+uvicorn
+supabase
