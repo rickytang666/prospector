@@ -80,9 +80,13 @@ async def fetch_channel_chunks(
 
     print(f"got {len(messages)} signal messages from #{channel.name}")
 
-    # also pull threads
+    # pull threads
     thread_messages = []
-    for thread in channel.threads:
+    all_threads = list(channel.threads)
+    async for thread in channel.archived_threads(limit=None):
+        all_threads.append(thread)
+
+    for thread in all_threads:
         async for msg in thread.history(limit=200, oldest_first=True):
             if msg.author.bot or msg.type != discord.MessageType.default:
                 continue
@@ -93,7 +97,7 @@ async def fetch_channel_chunks(
             thread_messages.append(msg)
 
     if thread_messages:
-        print(f"got {len(thread_messages)} signal messages from {len(channel.threads)} threads in #{channel.name}")
+        print(f"got {len(thread_messages)} signal messages from {len(all_threads)} threads in #{channel.name}")
         messages.extend(thread_messages)
 
     return _group_into_chunks(messages, team_name)
