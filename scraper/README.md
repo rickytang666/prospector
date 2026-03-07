@@ -8,3 +8,7 @@ for other companies from design team sources we smart crawl but make a note of t
 -> enrich.py (uses LLM to extract structured info from scraped pages)
 
 output
+
+
+schema.sql
+db.py for supabase integration
