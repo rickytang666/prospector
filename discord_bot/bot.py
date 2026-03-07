@@ -1,9 +1,27 @@
 import asyncio
 import os
 import sys
+import pathlib
 import discord
 from discord.ext import commands
 
+# Ensure both discord_bot/ and project root are importable regardless of how the
+# process is started (python discord_bot/bot.py vs uvicorn main:app).
+_BOT_DIR = pathlib.Path(__file__).parent
+_ROOT_DIR = _BOT_DIR.parent
+# Ensure project root is reachable (for storage, retrieval, internal_context).
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
+# Unconditionally place discord_bot/ at index 0 — it must shadow the root-level
+# config.py so that cog imports like `from config import GEMINI_API_KEY` resolve
+# to discord_bot/config.py, not the backend config.
+# (When run as `python discord_bot/bot.py` Python pre-populates sys.path[0] with
+# the script dir, but inserting ROOT above pushes it back to index 1.)
+try:
+    sys.path.remove(str(_BOT_DIR))
+except ValueError:
+    pass
+sys.path.insert(0, str(_BOT_DIR))
 
 from config import DISCORD_TOKEN, GUILD_ID
 

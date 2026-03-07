@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from testing_info import MOCK_RECRUIT_GAPS
 from ui.embeds import recruit_gap_embed
 
 
@@ -22,7 +21,13 @@ class RecruitGap(commands.Cog):
 
         await interaction.response.defer()
 
-        embed = recruit_gap_embed(MOCK_RECRUIT_GAPS, team_context["team_name"])
+        gaps = [{"role": need, "reason": ""} for need in team_context.get("inferred_support_needs", [])]
+
+        if not gaps:
+            await interaction.followup.send("No recruiting gaps inferred for this team.")
+            return
+
+        embed = recruit_gap_embed(gaps, team_context["team_name"])
         await interaction.followup.send(embed=embed)
 
 
