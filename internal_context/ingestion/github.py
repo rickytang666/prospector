@@ -49,8 +49,36 @@ def scrape_github(org_url: str, team_name: str) -> list[Chunk]:
     for repo in repos:
         chunks.extend(fetch_readme(org, repo, team_name))
         chunks.extend(fetch_issues(org, repo, team_name))
+        chunks.extend(fetch_docs(org, repo, team_name))
 
-    # TODO: docs
+    return chunks
+
+
+def fetch_docs(org: str, repo: str, team_name: str) -> list[Chunk]:
+    res = httpx.get(
+        f"https://api.github.com/repos/{org}/{repo}/contents/docs",
+        headers=HEADERS,
+    )
+    if res.status_code == 404:
+        return []
+    if res.status_code != 200:
+        print(f"failed to fetch docs/ for {org}/{repo}: {res.status_code}")
+        return []
+
+    chunks = []
+    files = res.json()
+    # could be a file not a dir if someone named a file "docs"
+    if not isinstance(files, list):
+        return []
+
+    for f in files:
+        if f["type"] != "file" or not f["name"].endswith(".md"):
+            continue
+        file_res = httpx.get(f["download_url"])
+        if file_res.status_code != 200:
+            continue
+        text = file_res.text
+        chunks.extend(chunk_text(text, team_name, "github_readme", f["html_url"]))
 
     return chunks
 
