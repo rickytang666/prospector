@@ -2,43 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from testing_info import MOCK_TEAM_CONTEXT
-
-
-def team_context_embed(context):
-    repo_url = context["repo_url"]
-
-    embed = discord.Embed(
-        title=f"{context['team_name']} — Team Analysis",
-        description=f"[{repo_url}]({repo_url})",
-        color=discord.Color.blurple(),
-        timestamp=discord.utils.utcnow()
-    )
-
-    # Extract GitHub owner for thumbnail (e.g. https://github.com/UWOrbital/... -> UWOrbital)
-    parts = repo_url.rstrip("/").split("/")
-    if len(parts) >= 4 and "github.com" in parts:
-        owner = parts[parts.index("github.com") + 1]
-        embed.set_thumbnail(url=f"https://github.com/{owner}.png")
-
-    embed.add_field(
-        name="Subsystems",
-        value="\n".join(f"• {s}" for s in context["subsystems"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Blockers",
-        value="\n".join(f"• {b}" for b in context["blockers"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Tech Stack",
-        value=" ".join(f"`{t}`" for t in context["tech_stack"]),
-        inline=False
-    )
-
-    return embed
+from ui.embeds import team_context_embed
 
 
 class AnalyzeTeam(commands.Cog):

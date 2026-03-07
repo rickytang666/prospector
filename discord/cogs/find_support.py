@@ -2,62 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from testing_info import MOCK_CANDIDATES, MOCK_EXPLANATIONS
-
-
-def score_bar(score, length=10):
-    filled = round(score * length)
-    return f"{'█' * filled}{'░' * (length - filled)} {int(score * 100)}%"
-
-
-def candidates_embed(candidates, query):
-    top = candidates[:5]
-
-    embed = discord.Embed(
-        title="Top Support Matches",
-        description=f'{len(top)} matches for *"{query}"*',
-        color=discord.Color.blue(),
-        timestamp=discord.utils.utcnow()
-    )
-
-    for i, c in enumerate(top, start=1):
-        reasons = "\n".join(f"> {r}" for r in c["matched_reasons"])
-        embed.add_field(
-            name=f"{i}. {c['name']}",
-            value=f"`{score_bar(c['overall_score'])}`\n{reasons}",
-            inline=False
-        )
-
-    embed.set_footer(text="Click a button below to see why a candidate fits.")
-    return embed
-
-
-def explanation_embed(data, team_name=None):
-    embed = discord.Embed(
-        title=data["entity_name"],
-        description=f"Match analysis for **{team_name}**" if team_name else None,
-        color=discord.Color.green(),
-        timestamp=discord.utils.utcnow()
-    )
-
-    embed.add_field(
-        name="Why it helps",
-        value="\n".join(f"> {r}" for r in data["why_it_helps"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Why they may care",
-        value="\n".join(f"> {r}" for r in data["why_they_may_care"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Recommended ask",
-        value=f"```{data['recommended_ask']}```",
-        inline=False
-    )
-
-    return embed
+from ui.embeds import candidates_embed, explanation_embed
 
 
 class CandidateButton(discord.ui.Button):

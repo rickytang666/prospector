@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from testing_info import MOCK_EXPLANATIONS
-from cogs.find_support import explanation_embed
+from ui.embeds import explanation_embed
 
 
 class ExplainMatch(commands.Cog):
