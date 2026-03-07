@@ -69,6 +69,7 @@ def check_empty():
     assert "db_raw_row_count" in out.retrieval_metadata
     assert "db_kept_row_count" in out.retrieval_metadata
     assert "db_dropped_row_count" in out.retrieval_metadata
+    assert out.retrieval_metadata["confidence"] in {"low", "medium", "high"}
 
 
 def check_query_shift():

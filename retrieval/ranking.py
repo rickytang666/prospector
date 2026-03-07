@@ -17,7 +17,7 @@ def _q_terms(q: str):
             s.add(w)
     return s
 
-from retrieval.config import RANKING_WEIGHTS, DEFAULT_K
+from retrieval.config import RANKING_WEIGHTS, DEFAULT_K, LOW_CONFIDENCE_TOP1, MEDIUM_CONFIDENCE_TOP1, MIN_RESULT_SCORE
 from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
@@ -142,7 +142,17 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
         ))
 
     out.sort(key=lambda x: x.overall_score, reverse=True)
+    out = [x for x in out if x.overall_score >= MIN_RESULT_SCORE]
     out = out[:max(0,k)]
+
+    top = out[0].overall_score if out else 0.0
+    conf = "low"
+    if top >= MEDIUM_CONFIDENCE_TOP1:
+        conf = "high"
+    elif top >= LOW_CONFIDENCE_TOP1:
+        conf = "medium"
+    if conf == "low" and len(out) > 3:
+        out = out[:3]
 
     ms = (time.perf_counter()-t0)*1000.0
     return RankedCandidateResponse(
@@ -158,6 +168,7 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
             "db_raw_row_count":db_raw,
             "db_kept_row_count":db_kept,
             "db_dropped_row_count":db_drop,
+            "confidence":conf,
             "weights":dict(RANKING_WEIGHTS),
             "filters_applied":filters or {},
         },
