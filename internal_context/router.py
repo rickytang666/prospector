@@ -47,6 +47,14 @@ async def ingest(req: IngestRequest):
     return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks)}
 
 
+@router.get("/context/{team_name}")
+async def get_context(team_name: str):
+    ctx = await db.get_team_context(team_name)
+    if not ctx:
+        raise HTTPException(status_code=404, detail="no context found for team")
+    return ctx
+
+
 @router.get("/chunks/{team_name}")
 async def get_chunks(team_name: str):
     chunks = await db.get_chunks(team_name)
