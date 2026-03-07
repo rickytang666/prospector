@@ -53,3 +53,45 @@ def get_affinity(company):
         })
 
     return evidence
+
+
+
+def build_entity(company, scraped_text, client):
+    resp = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=extraction_prompt.format(name=company["name"], content=scraped_text[:30000]),
+        config={"response_mime_type": "application/json"},
+    )
+
+    try:
+        extracted = json.loads(resp.text)
+    except:
+        print(f"  llm parse failed for {company['name']}")
+        extracted = {}
+
+    contact_routes = []
+    if extracted.get("contact_value"):
+        contact_routes.append({
+            "type": extracted.get("contact_type", "contact_page"),
+            "value": extracted["contact_value"],
+        })
+
+    #build entity
+    return {
+        "id": str(uuid.uuid4()),
+        "name": company["name"],
+        "entity_type": "provider",
+        "canonical_url": company.get("url"),
+        "summary": extracted.get("summary"),
+        "source_urls": [company.get("source_url", "")],
+        "tags": extracted.get("tags", []),
+        "support_types": extracted.get("support_types", []),
+        "waterloo_affinity_evidence": get_affinity(company),
+        "contact_routes": contact_routes,
+    }
+
+
+#helper for file paths
+def slug(name):
+    return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
+
