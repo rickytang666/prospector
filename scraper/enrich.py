@@ -64,17 +64,34 @@ def build_entity(company, scraped_text, client):
     )
 
     try:
-        extracted = json.loads(resp.text)
-    except:
+        raw = json.loads(resp.text)
+        # LLM sometimes returns a list (e.g. single-item array); normalize to dict
+        if isinstance(raw, list) and len(raw) > 0 and isinstance(raw[0], dict):
+            extracted = raw[0]
+        elif isinstance(raw, dict):
+            extracted = raw
+        else:
+            extracted = {}
+    except Exception:
         print(f"  llm parse failed for {company['name']}")
         extracted = {}
 
     contact_routes = []
-    if extracted.get("contact_value"):
-        contact_routes.append({
-            "type": extracted.get("contact_type", "contact_page"),
-            "value": extracted["contact_value"],
-        })
+    contact_type = extracted.get("contact_type", "contact_page") or "contact_page"
+    contact_value = extracted.get("contact_value")
+    if contact_value:
+        # support single string or list of strings
+        values = contact_value if isinstance(contact_value, list) else [contact_value]
+        for v in values:
+            if v and isinstance(v, str):
+                contact_routes.append({"type": contact_type, "value": v})
+
+    tags = extracted.get("tags", [])
+    support_types = extracted.get("support_types", [])
+    if not isinstance(tags, list):
+        tags = []
+    if not isinstance(support_types, list):
+        support_types = []
 
     #build entity
     return {
@@ -84,8 +101,8 @@ def build_entity(company, scraped_text, client):
         "canonical_url": company.get("url"),
         "summary": extracted.get("summary"),
         "source_urls": [company.get("source_url", "")],
-        "tags": extracted.get("tags", []),
-        "support_types": extracted.get("support_types", []),
+        "tags": tags,
+        "support_types": support_types,
         "waterloo_affinity_evidence": get_affinity(company),
         "contact_routes": contact_routes,
     }
