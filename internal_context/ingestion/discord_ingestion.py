@@ -49,3 +49,51 @@ def _group_into_chunks(messages: list[discord.Message], team_name: str, target_w
         ))
 
     return chunks
+
+async def fetch_channel_chunks(
+    client: discord.Client,
+    channel_id: int,
+    team_name: str,
+    limit: int = 500,
+) -> list[Chunk]:
+    channel = client.get_channel(channel_id)
+    if channel is None:
+        print(f"channel {channel_id} not found (bot might not be in that server)")
+        return []
+
+    if not isinstance(channel, discord.TextChannel):
+        print(f"channel {channel_id} is not a text channel, skipping")
+        return []
+
+    print(f"fetching messages from #{channel.name}")
+
+    messages = []
+    async for msg in channel.history(limit=limit, oldest_first=True):
+        # skip bots and system messages
+        if msg.author.bot or msg.type != discord.MessageType.default:
+            continue
+        if not msg.content.strip():
+            continue
+        if not _is_signal(msg):
+            continue
+        messages.append(msg)
+
+    print(f"got {len(messages)} signal messages from #{channel.name}")
+
+    # also pull threads
+    thread_messages = []
+    for thread in channel.threads:
+        async for msg in thread.history(limit=200, oldest_first=True):
+            if msg.author.bot or msg.type != discord.MessageType.default:
+                continue
+            if not msg.content.strip():
+                continue
+            if not _is_signal(msg):
+                continue
+            thread_messages.append(msg)
+
+    if thread_messages:
+        print(f"got {len(thread_messages)} signal messages from {len(channel.threads)} threads in #{channel.name}")
+        messages.extend(thread_messages)
+
+    return _group_into_chunks(messages, team_name)
