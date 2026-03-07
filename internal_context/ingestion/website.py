@@ -8,10 +8,22 @@ def fetch_page(url: str) -> str:
     res.raise_for_status()
 
     soup = BeautifulSoup(res.text, "lxml")
-    for tag in soup(["nav", "footer", "header", "script", "style"]):
+    for tag in soup(["nav", "footer", "header", "script", "style", "form", "button"]):
         tag.decompose()
 
-    return soup.get_text(separator="\n", strip=True)
+    # drop hidden/overlay divs
+    for tag in soup.find_all(True, {"class": lambda c: c and any(
+        x in " ".join(c) for x in ["modal", "overlay", "popup", "fixed", "hidden", "opacity-0"]
+    )}):
+        tag.decompose()
+
+    # prefer <main> or <article> if available — cuts out leftover layout noise
+    content = soup.find("main") or soup.find("article") or soup.find("body")
+
+    lines = content.get_text(separator="\n", strip=True).splitlines()
+    # drop short noisy lines
+    lines = [l for l in lines if len(l.split()) > 3]
+    return "\n".join(lines)
 
 
 def get_sitemap_urls(root: str) -> list[str]:
