@@ -46,6 +46,26 @@ def scrape_github(org_url: str, team_name: str) -> list[Chunk]:
     repos = list_repos(org)
     chunks = []
 
-    # TODO
+    for repo in repos:
+        chunks.extend(fetch_readme(org, repo, team_name))
+
+    # TODO: issues, docs
 
     return chunks
+
+
+def fetch_readme(org: str, repo: str, team_name: str) -> list[Chunk]:
+    res = httpx.get(
+        f"https://api.github.com/repos/{org}/{repo}/readme",
+        headers=HEADERS,
+    )
+    if res.status_code == 404:
+        return []
+    if res.status_code != 200:
+        print(f"failed to fetch readme for {org}/{repo}: {res.status_code}")
+        return []
+
+    data = res.json()
+    text = base64.b64decode(data["content"]).decode("utf-8", errors="ignore")
+    url = data["html_url"]
+    return chunk_text(text, team_name, "github_readme", url)
