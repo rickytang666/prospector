@@ -4,7 +4,6 @@ import sys
 import discord
 from discord.ext import commands
 
-sys.path.insert(0, os.path.dirname(__file__))
 
 from config import DISCORD_TOKEN, GUILD_ID
 

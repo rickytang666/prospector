@@ -11,10 +11,26 @@ def get_client() -> Client:
     return _client
 
 
+async def delete_chunks(team_name: str) -> None:
+    db = get_client()
+    db.table("chunks").delete().eq("team_name", team_name).execute()
+
+
 async def insert_chunks(chunks: list[dict]) -> None:
     db = get_client()
     rows = [c.model_dump(exclude_none=True) for c in chunks]
     db.table("chunks").insert(rows).execute()
+
+
+async def upsert_team_context(data: dict) -> None:
+    db = get_client()
+    db.table("team_context").upsert(data, on_conflict="team_name").execute()
+
+
+async def get_team_context(team_name: str) -> dict | None:
+    db = get_client()
+    res = db.table("team_context").select("*").eq("team_name", team_name).maybe_single().execute()
+    return res.data
 
 
 async def get_chunks(team_name: str) -> list[dict]:

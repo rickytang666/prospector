@@ -5,6 +5,7 @@ from storage import db
 from internal_context.ingestion.website import scrape_website
 from internal_context.ingestion.github import scrape_github
 from internal_context.embedding.embedder import embed_chunks
+from internal_context.extraction.extractor import extract_team_context
 
 router = APIRouter()
 
@@ -17,7 +18,9 @@ class IngestRequest(BaseModel):
 
 @router.post("/ingest")
 async def ingest(req: IngestRequest):
+    await db.delete_chunks(req.team_name)
     chunks = []
+    ctx = None
 
     if req.urls:
         website_chunks = await asyncio.to_thread(scrape_website, req.urls, req.team_name)
@@ -32,13 +35,19 @@ async def ingest(req: IngestRequest):
     if chunks:
         chunks = await asyncio.to_thread(embed_chunks, chunks)
         await db.insert_chunks(chunks)
-        # sanity check
-        sample = await db.get_chunks(req.team_name)
-        if sample:
-            emb = sample[0].get("embedding")
-            print(f"sample embedding: {'ok' if emb and len(emb) == 1536 else 'MISSING or wrong size'} (len={len(emb) if emb else 0})")
+        ctx = await asyncio.to_thread(extract_team_context, req.team_name, chunks)
+        await db.upsert_team_context(ctx)
+        print(f"team context: {ctx}")
 
-    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks)}
+    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks), "context": ctx if chunks else None}
+
+
+@router.get("/context/{team_name}")
+async def get_context(team_name: str):
+    ctx = await db.get_team_context(team_name)
+    if not ctx:
+        raise HTTPException(status_code=404, detail="no context found for team")
+    return ctx
 
 
 @router.get("/chunks/{team_name}")
