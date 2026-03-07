@@ -14,6 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 bot.team_configs = {}
 bot.team_context_cache = {}
+bot.email_draft_cache = {}
 
 async def load_cogs():
     await bot.load_extension("cogs.setup_team")

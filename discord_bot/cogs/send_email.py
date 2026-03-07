@@ -8,6 +8,18 @@ from config import GMAIL_USER, GMAIL_APP_PASSWORD
 from cogs.sample_email import CopyButton
 
 
+def _parse_draft(draft: str) -> tuple[str, str]:
+    """Split 'Subject: ...\n\nbody...' into (subject, body)."""
+    lines = draft.strip().split("\n", 1)
+    subject_line = lines[0].strip()
+    if subject_line.lower().startswith("subject:"):
+        subject = subject_line[len("subject:"):].strip()
+    else:
+        subject = subject_line
+    body = lines[1].strip() if len(lines) > 1 else ""
+    return subject, body
+
+
 async def _send_email(from_email: str, to_email: str, subject: str, body: str) -> None:
     message = MIMEText(body, "plain")
     message["From"] = from_email
@@ -28,21 +40,26 @@ class SendEmail(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="send_email", description="Send an email via Gmail")
+    @app_commands.command(name="send_email", description="Send the latest email draft via Gmail")
     @app_commands.describe(
         from_email="Your team's Gmail address",
         to_email="Recipient's email address",
-        subject="Email subject line",
-        body="Email body text",
     )
     async def send_email_cmd(
         self,
         interaction: discord.Interaction,
         from_email: str,
         to_email: str,
-        subject: str,
-        body: str,
     ):
+        draft = self.bot.email_draft_cache.get(interaction.guild_id)
+        if not draft:
+            await interaction.response.send_message(
+                "No draft found. Run `/sample_email` first.", ephemeral=True
+            )
+            return
+
+        subject, body = _parse_draft(draft)
+
         await interaction.response.defer(ephemeral=True)
 
         try:
@@ -52,10 +69,10 @@ class SendEmail(commands.Cog):
             return
 
         view = discord.ui.View(timeout=300)
-        view.add_item(CopyButton(body))
+        view.add_item(CopyButton(draft))
 
         await interaction.followup.send(
-            f"Email sent to **{to_email}**.\n```\n{body}\n```",
+            f"Email sent to **{to_email}**.\n```\n{draft}\n```",
             view=view,
             ephemeral=True,
         )
