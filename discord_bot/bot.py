@@ -44,9 +44,15 @@ async def on_ready():
     await bot.tree.sync()
     print(f"Logged in as {bot.user}")
 
-async def main():
+async def start_bot():
     async with bot:
         await load_cogs()
         await bot.start(DISCORD_TOKEN)
 
-asyncio.run(main())
+
+async def main():
+    await start_bot()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
