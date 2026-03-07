@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime, timezone
+from bs4 import BeautifulSoup
 
 import trafilatura
 
@@ -18,7 +19,7 @@ def slug(name):
 def scrape_url(url):
     try:
         r = httpx.get(url, timeout=20, follow_redirects=True, headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" 
         })
         r.raise_for_status()
         text = trafilatura.extract(r.text) or ""
@@ -26,6 +27,47 @@ def scrape_url(url):
     except Exception as e:
         print(f"    failed: {e}")
         return None, ""
+
+
+# scrape velocity profile page, find real company url
+def scrape_velocity_profile(company):
+    profile_url = company["url"]
+    raw_html, profile_text = scrape_url(profile_url)
+    if not raw_html:
+        return None, {}
+
+    soup = BeautifulSoup(raw_html, "html.parser")
+    real_url = None
+    for a in soup.find_all("a", href=True):
+        text = a.get_text(strip=True).lower()
+        href = a["href"]
+        if "visit" in text and "velocityincubator" not in href:
+            real_url = href
+            break
+
+    profile_data = {
+        "url": profile_url,
+        "title": f"{company['name']} - Velocity Profile",
+        "raw_text": profile_text,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return real_url, profile_data
+
+
+# scrape yc profile page for extra info
+def scrape_yc_profile(company):
+    name_slug = company["name"].lower().replace(" ", "-")
+    profile_url = f"https://www.ycombinator.com/companies/{name_slug}"
+    _, profile_text = scrape_url(profile_url)
+    if not profile_text:
+        return {}
+
+    return {
+        "url": profile_url,
+        "title": f"{company['name']} - YC Profile",
+        "raw_text": profile_text,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def scrape():
