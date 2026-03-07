@@ -20,6 +20,7 @@ async def load_cogs():
     await bot.load_extension("cogs.analyze_team")
     await bot.load_extension("cogs.find_support")
     await bot.load_extension("cogs.explain_match")
+    await bot.load_extension("cogs.recruit_gap")
 
 @bot.event
 async def on_ready():
