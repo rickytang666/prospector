@@ -1,8 +1,43 @@
 import discord
+import google.generativeai as genai
 from discord import app_commands
 from discord.ext import commands
 
-from emailgen.email import generate_email
+from config import GEMINI_API_KEY
+
+genai.configure(api_key=GEMINI_API_KEY)
+_model = genai.GenerativeModel("gemini-2.0-flash")
+
+
+async def _generate_email(team_context: dict, organization: str, email_type: str, subject_line: str) -> str:
+    prompt = f"""
+Write a professional {email_type} email from {team_context['team_name']} to {organization}.
+
+Subject: {subject_line}
+
+Team context:
+- Subsystems: {', '.join(team_context['subsystems'])}
+- Tech stack: {', '.join(team_context['tech_stack'])}
+- Current blockers: {', '.join(team_context['blockers'])}
+
+Requirements:
+- Tone: professional, concise, direct
+- Length: 150-250 words
+- Start with "Subject: ..." on the first line
+- No placeholders — write a complete, sendable draft
+- {"Request sponsorship or resources" if email_type == "sponsorship" else "Propose collaboration or outreach"}
+"""
+    response = await _model.generate_content_async(prompt)
+    return response.text
+
+
+class CopyButton(discord.ui.Button):
+    def __init__(self, draft: str):
+        super().__init__(label="Copy", style=discord.ButtonStyle.secondary)
+        self.draft = draft
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(self.draft, ephemeral=True)
 
 
 class EditEmailModal(discord.ui.Modal, title="Edit Email Draft"):
@@ -15,8 +50,11 @@ class EditEmailModal(discord.ui.Modal, title="Edit Email Draft"):
         self.body.default = draft
 
     async def on_submit(self, interaction: discord.Interaction):
+        edited = self.body.value
+        view = discord.ui.View(timeout=300)
+        view.add_item(CopyButton(edited))
         await interaction.response.send_message(
-            f"```\n{self.body.value}\n```", ephemeral=True
+            f"```\n{edited}\n```", view=view, ephemeral=True
         )
 
 
@@ -29,10 +67,11 @@ class EditEmailButton(discord.ui.Button):
         await interaction.response.send_modal(EditEmailModal(self.draft))
 
 
-class EditEmailView(discord.ui.View):
+class EmailView(discord.ui.View):
     def __init__(self, draft: str):
         super().__init__(timeout=300)
         self.add_item(EditEmailButton(draft))
+        self.add_item(CopyButton(draft))
 
 
 class SampleEmail(commands.Cog):
@@ -66,10 +105,9 @@ class SampleEmail(commands.Cog):
 
         await interaction.response.defer()
 
-        draft = await generate_email(team_context, organization, type.value, subject_line)
+        draft = await _generate_email(team_context, organization, type.value, subject_line)
 
-        view = EditEmailView(draft)
-        await interaction.followup.send(f"```\n{draft}\n```", view=view)
+        await interaction.followup.send(f"```\n{draft}\n```", view=EmailView(draft))
 
 
 async def setup(bot: commands.Bot):

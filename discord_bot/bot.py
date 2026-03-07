@@ -22,6 +22,7 @@ async def load_cogs():
     await bot.load_extension("cogs.explain_match")
     await bot.load_extension("cogs.recruit_gap")
     await bot.load_extension("cogs.sample_email")
+    await bot.load_extension("cogs.send_email")
 
 @bot.event
 async def on_ready():

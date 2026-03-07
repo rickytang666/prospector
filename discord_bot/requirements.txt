@@ -1,4 +1,5 @@
 aiohttp
+aiosmtplib
 aiosqlite
 discord.py==2.6.4
 google-generativeai
