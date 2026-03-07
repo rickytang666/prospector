@@ -7,13 +7,15 @@ from testing_info import MOCK_RECRUIT_GAPS
 def recruit_gap_embed(gaps, team_name):
     embed = discord.Embed(
         title=f"{team_name} — Recruiting Gaps",
-        color=discord.Color.orange()
+        description=f"{len(gaps)} inferred gap{'s' if len(gaps) != 1 else ''} detected",
+        color=discord.Color.orange(),
+        timestamp=discord.utils.utcnow()
     )
 
     for gap in gaps:
         embed.add_field(
             name=gap["role"],
-            value=gap["reason"],
+            value=f"> {gap['reason']}",
             inline=False
         )
 
