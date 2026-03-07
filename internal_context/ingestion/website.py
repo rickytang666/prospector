@@ -42,6 +42,23 @@ def get_sitemap_urls(root: str) -> list[str]:
     return [u for u in urls if u.startswith(root)]
 
 
+def scrape_website(urls: list[str], team_name: str) -> list[dict]:
+    """full pipeline"""
+    from internal_context.chunking.chunker import chunk_text
+
+    all_chunks = []
+    for root in urls:
+        for page_url in get_all_urls(root):
+            try:
+                text = fetch_page(page_url)
+                chunks = chunk_text(text, team_name, "website", page_url)
+                all_chunks.extend([c.model_dump(exclude_none=True) for c in chunks])
+            except Exception as e:
+                print(f"failed to scrape {page_url}: {e}")
+
+    return all_chunks
+
+
 def get_all_urls(root: str) -> list[str]:
     """try sitemap first, fall back to crawling"""
     urls = get_sitemap_urls(root)

@@ -1,6 +1,8 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from storage import db
+from internal_context.ingestion.website import scrape_website
 
 router = APIRouter()
 
@@ -8,13 +10,24 @@ router = APIRouter()
 class IngestRequest(BaseModel):
     team_name: str
     org_url: str
-    website_url: str | None = None
+    urls: list[str] = []  # website, docs, wiki — wtv the team has
 
 
 @router.post("/ingest")
 async def ingest(req: IngestRequest):
-    # TODO: wire up scraping -> chunking -> embedding -> db
-    return {"status": "ok", "team": req.team_name}
+    chunks = []
+
+    if req.urls:
+        website_chunks = await asyncio.to_thread(scrape_website, req.urls, req.team_name)
+        chunks.extend(website_chunks)
+        print(f"got {len(website_chunks)} chunks from websites")
+
+    # TODO: github stuff
+
+    if chunks:
+        await db.insert_chunks(chunks)
+
+    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks)}
 
 
 @router.get("/chunks/{team_name}")
