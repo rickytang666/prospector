@@ -12,5 +12,6 @@ __pycache__/
 .idea/
 .cursor/
 .antigravity/
+.claude/
 .cursorrules
 CLAUDE.md
