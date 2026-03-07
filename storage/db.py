@@ -22,6 +22,11 @@ async def insert_chunks(chunks: list[dict]) -> None:
     db.table("chunks").insert(rows).execute()
 
 
+async def upsert_team_context(data: dict) -> None:
+    db = get_client()
+    db.table("team_context").upsert(data, on_conflict="team_name").execute()
+
+
 async def get_chunks(team_name: str) -> list[dict]:
     db = get_client()
     res = db.table("chunks").select("id, team_name, source_type, source_url, content, created_at").eq("team_name", team_name).execute()
