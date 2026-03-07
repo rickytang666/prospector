@@ -60,10 +60,16 @@ def _compose(sem,tag,sup,wat):
     return compose_scores(sem, tag, sup, wat)
 
 def _reasons(sb,ov,suphits,wn):
-    return build_matched_reasons(sb, ov, suphits, wn)
+    r = build_matched_reasons(sb, ov, suphits, wn)
+    if not r:
+        return ["Moderate match from available signals."]
+    return r
 
 def _ev(e,ov,suphits):
-    return build_evidence_snippets(e, ov, suphits)
+    z = build_evidence_snippets(e, ov, suphits)
+    if not z:
+        return [f"{e.summary} (from entity summary)"] if e.summary else ["No evidence available (fallback)."]
+    return z
 
 def _arr(v):
     if v is None:
@@ -171,7 +177,7 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
             waterloo_affinity_evidence=e.waterloo_affinity_evidence,
         ))
 
-    out.sort(key=lambda x: x.overall_score, reverse=True)
+    out.sort(key=lambda x: (-x.overall_score, x.name.lower(), x.entity_id))
     out = [x for x in out if x.overall_score >= MIN_RESULT_SCORE]
     out = out[:max(0,k)]
 

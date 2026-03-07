@@ -80,6 +80,8 @@ def check_query_shift():
     a = rank_candidates(ctx, "ground station mapping telemetry", k=5)
     b = rank_candidates(ctx, "pcb manufacturing sponsorship", k=5)
     assert a.candidates[0].entity_id != b.candidates[0].entity_id
+    a2 = rank_candidates(ctx, "ground station mapping telemetry", k=5)
+    assert [x.entity_id for x in a.candidates] == [x.entity_id for x in a2.candidates]
 
 
 def check_reindex():
