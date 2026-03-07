@@ -105,6 +105,30 @@ def check_scoring():
     assert clamp01(0.42) == 0.42
 
 
+def check_db_norm_helpers():
+    from retrieval.db_retrieval import _to_str_list, _norm_affinity, _row_to_entity
+    assert _to_str_list('["a","b"]') == ["a", "b"]
+    a = _norm_affinity('[{"type":"official_page","text":"x","source_url":"u"}]')
+    assert len(a) == 1
+    r = {
+        "id": "z1",
+        "name": "n",
+        "type": "provider",
+        "entity_summary": "s",
+        "entity_tags": '["mapping","rf"]',
+        "support": "software_credits, mentorship",
+        "affinity_evidence": '[{"type":"alumni_link","text":"t","source_url":"u"}]',
+        "score": 0.77,
+    }
+    x = _row_to_entity(r)
+    assert x is not None
+    e, sem = x
+    assert e.entity_id == "z1"
+    assert e.name == "n"
+    assert "mapping" in e.tags
+    assert sem == 0.77
+
+
 def run_all():
     checks = [
         ("rank_shape", check_rank_shape),
@@ -113,6 +137,7 @@ def run_all():
         ("query_shift", check_query_shift),
         ("reindex", check_reindex),
         ("scoring", check_scoring),
+        ("db_norm", check_db_norm_helpers),
     ]
     bad = 0
     for name, fn in checks:

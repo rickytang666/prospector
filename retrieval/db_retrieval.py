@@ -1,12 +1,28 @@
 from __future__ import annotations
 
 from typing import Any
+import json
 
 from retrieval.models import Entity, TeamContext, WaterlooAffinityEvidence
 from retrieval.supabase_client import fetch_semantic_candidates_from_rpc
 
 
+def _parse_json_maybe(v: Any):
+    if not isinstance(v, str):
+        return v
+    s = v.strip()
+    if not s:
+        return v
+    if not ((s.startswith("{") and s.endswith("}")) or (s.startswith("[") and s.endswith("]"))):
+        return v
+    try:
+        return json.loads(s)
+    except Exception:
+        return v
+
+
 def _to_str_list(v: Any):
+    v = _parse_json_maybe(v)
     if v is None:
         return []
     if isinstance(v, list):
@@ -25,6 +41,7 @@ def _to_str_list(v: Any):
 
 
 def _norm_affinity(v: Any):
+    v = _parse_json_maybe(v)
     out: list[WaterlooAffinityEvidence] = []
     if not v:
         return out
@@ -69,13 +86,16 @@ def _score01(x: Any):
 
 
 def _row_to_entity(row: dict[str, Any]):
+    row = _parse_json_maybe(row)
+    if not isinstance(row, dict):
+        return None
     eid = str(row.get("entity_id") or row.get("id") or "")
     nm = str(row.get("name") or "")
     et = str(row.get("entity_type") or row.get("type") or "unknown")
-    sm = str(row.get("summary") or row.get("description") or "")
-    tg = _to_str_list(row.get("tags"))
-    st = _to_str_list(row.get("support_types"))
-    wa = _norm_affinity(row.get("waterloo_affinity_evidence"))
+    sm = str(row.get("summary") or row.get("description") or row.get("entity_summary") or "")
+    tg = _to_str_list(row.get("tags") or row.get("entity_tags"))
+    st = _to_str_list(row.get("support_types") or row.get("supports") or row.get("support"))
+    wa = _norm_affinity(row.get("waterloo_affinity_evidence") or row.get("waterloo_affinity") or row.get("affinity_evidence"))
 
     ent = Entity(
         entity_id=eid,
@@ -86,7 +106,12 @@ def _row_to_entity(row: dict[str, Any]):
         support_types=st,
         waterloo_affinity_evidence=wa,
     )
-    sem = _score01(row.get("semantic_score", row.get("similarity", 0.0)))
+    sem = _score01(
+        row.get(
+            "semantic_score",
+            row.get("similarity", row.get("score", row.get("cosine_similarity", 0.0))),
+        )
+    )
     return ent, sem
 
 
@@ -132,10 +157,15 @@ def fetch_candidates_from_db_with_meta(
     out: list[tuple[Entity, float]] = []
     dropped = 0
     for r in rows:
-        if not isinstance(r, dict):
+        rr = _parse_json_maybe(r)
+        if not isinstance(rr, dict):
             dropped += 1
             continue
-        e, sem = _row_to_entity(r)
+        x = _row_to_entity(rr)
+        if x is None:
+            dropped += 1
+            continue
+        e, sem = x
         if not e.entity_id or not e.name:
             dropped += 1
             continue
