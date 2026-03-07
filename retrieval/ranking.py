@@ -17,91 +17,12 @@ def _q_terms(q: str):
             s.add(w)
     return s
 
-
-def build_stub_candidate(entity: Entity, semantic: float, tag: float, support: float, waterloo: float) -> RankedCandidate:
-    overall = (0.4*semantic) + (0.25*tag) + (0.2*support) + (0.15*waterloo)
-    reasons = ["testing stub", "derive from retrieval signals later"]
-
-    evidence = [f"{entity.summary} (from entity summary)"]
-    if entity.tags:
-        evidence.append(f"Entity tags: {', '.join(entity.tags[:4])} (from entity tags)")
-    if entity.waterloo_affinity_evidence:
-        evidence.append(
-            f"{entity.waterloo_affinity_evidence[0].text} (from waterloo_affinity_evidence)"
-        )
-    return RankedCandidate(
-        entity_id=entity.entity_id,
-        name=entity.name,
-        entity_type=entity.entity_type,
-        overall_score=round(overall, 4),
-        score_breakdown=ScoreBreakdown(
-            semantic_score=semantic,
-            tag_overlap_score=tag,
-            support_fit_score=support,
-            waterloo_affinity_score=waterloo,
-        ),
-        matched_reasons=reasons,
-        evidence_snippets=evidence[:3],
-        support_types=entity.support_types,
-        waterloo_affinity_evidence=entity.waterloo_affinity_evidence,
-    )
-
-def rank_candidates(team_context: TeamContext, query: str, k: int = 5, filters: dict[str, Any] | None = None,) -> RankedCandidateResponse:
-    start = time.perf_counter()
-    cleaned = (query or "").strip()
-    entities = {e.entity_id: e for e in get_mock_entities()}
-
-    scored = [
-        build_stub_candidate(entities["ent-mapbox"], semantic=0.90, tag=0.80, support=0.85, waterloo=0.00),
-        build_stub_candidate(entities["ent-prof-chen"], semantic=0.86, tag=0.78, support=0.75, waterloo=0.60),
-        build_stub_candidate(entities["ent-waterloo-geo"], semantic=0.84, tag=0.76, support=0.72, waterloo=0.80),
-        build_stub_candidate(entities["ent-uw-maps-lab"], semantic=0.82, tag=0.70, support=0.68, waterloo=0.80),
-        build_stub_candidate(entities["ent-cesium"], semantic=0.80, tag=0.66, support=0.60, waterloo=0.00),
-        build_stub_candidate(entities["ent-gcp"], semantic=0.62, tag=0.44, support=0.76, waterloo=0.00),
-        build_stub_candidate(entities["ent-aws"], semantic=0.60, tag=0.42, support=0.80, waterloo=0.00),
-    ]
-
-    if filters:
-        entity_type_filter = filters.get("entity_type")
-        if entity_type_filter:
-            scored = [c for c in scored if c.entity_type == entity_type_filter]
-
-    scored.sort(key=lambda c: c.overall_score, reverse=True)
-    final_candidates = scored[: max(k, 0)]
-    elapsed_ms = (time.perf_counter() - start) * 1000.0
-    query_summary = cleaned or "No query provided"
-
-    return RankedCandidateResponse(
-        query_summary=f"{query_summary} | team={team_context.team_name}",
-        candidates=final_candidates,
-        retrieval_metadata={
-            "mode": "phase0_stub",
-            "timing_ms": round(elapsed_ms, 2),
-            "corpus_size": len(entities),
-            "weights": {
-                "semantic": 0.40,
-                "tag_overlap": 0.25,
-                "support_fit": 0.20,
-                "waterloo_affinity": 0.15,
-            },
-            "filters_applied": filters or {},
-        },
-    )
-
-#temp stubs:
-def get_entity_embedding(entity_id: str) -> list[float] | None: return None
-def reindex_entities(entities: list[Entity]) -> int: return len(entities)
-
 from retrieval.config import RANKING_WEIGHTS, DEFAULT_K
 from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
 from retrieval.reasons import build_matched_reasons, build_evidence_snippets
 from retrieval.db_retrieval import fetch_candidates_from_db
-
-_old_rank_candidates = rank_candidates
-_old_get_entity_embedding = get_entity_embedding
-_old_reindex_entities = reindex_entities
 
 _ENTS = []
 
@@ -148,12 +69,17 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
     t0 = time.perf_counter()
     _boot()
 
-    raw = []
+    raw=[]
+    src="supabase"
+    db_err=None
     try:
         raw = fetch_candidates_from_db(team_context=team_context, query=query, k=max(1, k * 2), filters=filters)
-    except Exception:
-        raw = []
+    except Exception as e:
+        raw=[]
+        src="fallback_local"
+        db_err=str(e)
     if not raw:
+        src="fallback_local"
         raw = semantic_search(_ENTS, query=query, team_context=team_context, k=max(1,k))
     ctx_tags = _ctx_tags(team_context, "") 
     q_tags = _q_terms(query)                
@@ -182,7 +108,6 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
         w = _wat(e)
         allv = _compose(sem,t,s,w)
 
-        # force query intent to matter more in hackathon mode
         if q_tags:
             if q_ov:
                 allv += 0.18 * (len(q_ov) / max(1, len(q_tags)))
@@ -222,27 +147,20 @@ def _rank_candidates_phase1(team_context: TeamContext, query: str, k: int = DEFA
             "mode":"phase1_semantic_plus_rules",
             "timing_ms":round(ms,2),
             "corpus_size":corpus_size(),
+            "candidate_source":src,
+            "db_error":db_err,
             "weights":dict(RANKING_WEIGHTS),
             "filters_applied":filters or {},
         },
     )
 
-# override old stubs, but keep fallback
 def rank_candidates(team_context: TeamContext, query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
-    try:
-        return _rank_candidates_phase1(team_context, query, k=k, filters=filters)
-    except Exception:
-        return _old_rank_candidates(team_context, query, k=k, filters=filters)
+    return _rank_candidates_phase1(team_context, query, k=k, filters=filters)
 
 def get_entity_embedding(entity_id: str):
-    x = _get_emb(entity_id)
-    if x is not None: return x
-    return _old_get_entity_embedding(entity_id)
+    return _get_emb(entity_id)
 
 def reindex_entities(entities: list[Entity]):
     global _ENTS
     _ENTS = list(entities)
-    try:
-        return embed_entities(_ENTS)
-    except Exception:
-        return _old_reindex_entities(entities)
+    return embed_entities(_ENTS)
