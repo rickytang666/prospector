@@ -7,3 +7,10 @@ __pycache__/
 !README.md
 !docs/
 !docs/**/*.md
+
+.vscode/
+.idea/
+.cursor/
+.antigravity/
+.cursorrules
+CLAUDE.md
