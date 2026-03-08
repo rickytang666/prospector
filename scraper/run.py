@@ -13,9 +13,9 @@ import shutil
 from dotenv import load_dotenv
 from supabase import create_client
 
-from scraper.gather import gather
+from scraper.gather import gather, gather_seeds, gather_from_teams, discover_teams, find_sponsor_pages
 from scraper.scrape import scrape
-from scraper.enrich import enrich
+from scraper.enrich import enrich, fast_enrich
 from scraper.embedding import embed_entity, EMBEDDING_MODEL, get_embedding_error_hint
 
 load_dotenv()
@@ -335,6 +335,12 @@ def run_pipeline(
                 json.dump(params.sources, f)
             g.sources_file = tmp
 
+        discover_teams()
+        find_sponsor_pages()
+        gather_from_teams()
+        gather_seeds()
+        from scraper.wikidata import gather_wikidata
+        gather_wikidata(data_dir / "companies.json")
         gather()
         scrape(limit=params.limit)
 
@@ -364,6 +370,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Scraper pipeline")
     parser.add_argument("--enrich-only", action="store_true", help="Skip gather & scrape; only run enrich and store to DB")
+    parser.add_argument("--fast-enrich", action="store_true", help="No LLM — build entities from scraped text directly, then store to DB")
     parser.add_argument("--embeddings-only", action="store_true", help="Only generate embeddings for existing entities in DB (no gather/scrape/enrich)")
     parser.add_argument("--limit", type=int, default=None, help="Max companies to process")
     args = parser.parse_args()
@@ -373,6 +380,17 @@ if __name__ == "__main__":
         print(f"Embeddings: {out['embedded']} embedded, {out['skipped']} already had, {out['failed']} failed.")
         if out.get("error"):
             print(f"Reason: {out['error']}")
+    elif args.fast_enrich:
+        fast_enrich(limit=args.limit)
+        entities_file = data_dir / "entities.json"
+        entities = json.load(open(entities_file)) if entities_file.exists() else []
+        valid_entities = [e for e in entities if is_valid_entity(e)]
+        skipped = len(entities) - len(valid_entities)
+        if skipped:
+            print(f"Skipped {skipped} empty/invalid entities")
+        raw_dir = data_dir / "raw_pages"
+        stored = store_to_supabase(valid_entities, raw_dir)
+        print(f"Done. {len(entities)} entities ({len(valid_entities)} valid), {stored} stored to DB.")
     elif args.enrich_only:
         enrich(limit=args.limit)
         entities_file = data_dir / "entities.json"

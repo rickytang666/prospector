@@ -1,0 +1,50 @@
+[
+  {"name": "Ansys", "url": "https://www.ansys.com", "vertical": "simulation"},
+  {"name": "MathWorks", "url": "https://www.mathworks.com", "vertical": "simulation"},
+  {"name": "National Instruments", "url": "https://www.ni.com", "vertical": "simulation"},
+  {"name": "Dassault Systèmes", "url": "https://www.3ds.com", "vertical": "simulation"},
+  {"name": "SolidWorks", "url": "https://www.solidworks.com", "vertical": "simulation"},
+  {"name": "Altium", "url": "https://www.altium.com", "vertical": "simulation"},
+  {"name": "PTC", "url": "https://www.ptc.com", "vertical": "simulation"},
+
+  {"name": "Texas Instruments", "url": "https://www.ti.com", "vertical": "semiconductors"},
+  {"name": "STMicroelectronics", "url": "https://www.st.com", "vertical": "semiconductors"},
+  {"name": "NXP Semiconductors", "url": "https://www.nxp.com", "vertical": "semiconductors"},
+  {"name": "Microchip Technology", "url": "https://www.microchip.com", "vertical": "semiconductors"},
+  {"name": "Infineon Technologies", "url": "https://www.infineon.com", "vertical": "semiconductors"},
+  {"name": "AMD", "url": "https://www.amd.com", "vertical": "semiconductors"},
+  {"name": "Intel", "url": "https://www.intel.com", "vertical": "semiconductors"},
+
+  {"name": "NVIDIA", "url": "https://www.nvidia.com", "vertical": "ai_hardware"},
+  {"name": "Google", "url": "https://www.google.com", "vertical": "ai_hardware"},
+
+  {"name": "u-blox", "url": "https://www.u-blox.com", "vertical": "sensors"},
+  {"name": "Bosch Sensortec", "url": "https://www.bosch-sensortec.com", "vertical": "sensors"},
+  {"name": "Luminar", "url": "https://www.luminartech.com", "vertical": "sensors"},
+  {"name": "Ouster", "url": "https://www.ouster.com", "vertical": "sensors"},
+  {"name": "Hesai", "url": "https://www.hesaitech.com", "vertical": "sensors"},
+
+  {"name": "JLCPCB", "url": "https://jlcpcb.com", "vertical": "manufacturing"},
+  {"name": "PCBWay", "url": "https://www.pcbway.com", "vertical": "manufacturing"},
+  {"name": "OSH Park", "url": "https://oshpark.com", "vertical": "manufacturing"},
+
+  {"name": "Siemens", "url": "https://www.siemens.com", "vertical": "automotive"},
+  {"name": "Bosch", "url": "https://www.bosch.com", "vertical": "automotive"},
+  {"name": "Continental", "url": "https://www.continental.com", "vertical": "automotive"},
+  {"name": "Aptiv", "url": "https://www.aptiv.com", "vertical": "automotive"},
+  {"name": "Rivian", "url": "https://www.rivian.com", "vertical": "automotive"},
+  {"name": "Zoox", "url": "https://zoox.com", "vertical": "automotive"},
+  {"name": "Tesla", "url": "https://www.tesla.com", "vertical": "automotive"},
+
+  {"name": "SpaceX", "url": "https://www.spacex.com", "vertical": "aerospace"},
+  {"name": "Planet Labs", "url": "https://www.planet.com", "vertical": "aerospace"},
+  {"name": "Maxar", "url": "https://www.maxar.com", "vertical": "aerospace"},
+  {"name": "L3Harris", "url": "https://www.l3harris.com", "vertical": "aerospace"},
+  {"name": "Rocket Lab", "url": "https://www.rocketlabusa.com", "vertical": "aerospace"},
+
+  {"name": "AWS", "url": "https://aws.amazon.com", "vertical": "cloud"},
+  {"name": "Google Cloud", "url": "https://cloud.google.com", "vertical": "cloud"},
+  {"name": "Microsoft Azure", "url": "https://azure.microsoft.com", "vertical": "cloud"},
+  {"name": "GitHub", "url": "https://github.com", "vertical": "cloud"},
+  {"name": "JetBrains", "url": "https://www.jetbrains.com", "vertical": "cloud"}
+]
