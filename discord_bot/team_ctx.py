@@ -1,5 +1,6 @@
-"""Resolve current user's team context from cache or DB (after configure-team + analyze-team)."""
+
 from storage import db
+
 
 
 async def get_team_context_for_member(bot, guild_id, user_id):

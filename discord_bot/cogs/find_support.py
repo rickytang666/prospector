@@ -19,7 +19,7 @@ class FindSupport(commands.Cog):
         from discord_bot.team_ctx import get_team_context_for_member
         team_context = await get_team_context_for_member(interaction.client, guild_id, user_id)
         if not team_context:
-            await interaction.response.send_message("Run `/configure-team add` and `/analyze-team` first.")
+            await interaction.response.send_message("Run `/configure-team add` first (use `/my-team` to see teams). Context loads from the database.")
             return
         await interaction.response.defer()
         result = await asyncio.to_thread(fn, team_context=team_context, query=query, k=k, **kwargs)

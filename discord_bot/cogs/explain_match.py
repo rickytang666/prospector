@@ -21,7 +21,7 @@ class ExplainMatch(commands.Cog):
         team_context = await get_team_context_for_member(interaction.client, guild_id, user_id)
 
         if not team_context:
-            await interaction.response.send_message("Run `/configure-team add` and `/analyze-team` first.")
+            await interaction.response.send_message("Run `/configure-team add` first (use `/my-team` to see teams).")
             return
 
         await interaction.response.defer()

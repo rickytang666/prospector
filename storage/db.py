@@ -91,26 +91,58 @@ async def upsert_team(guild_id: str, team_name: str, repo_url: str | None = None
     db.table("teams").upsert(row, on_conflict="guild_id,team_name").execute()
 
 
-# ---- user_teams (configure-team: assign user to a team) ----
-async def get_user_team(guild_id: str, user_id: str) -> str | None:
+# ---- user_teams (multiple teams per user; one "active" for context) ----
+async def get_user_teams(guild_id: str, user_id: str) -> list[dict]:
+    """All teams this user is in; each dict has team_name, is_active."""
     db = get_client()
-    res = db.table("user_teams").select("team_name").eq("guild_id", str(guild_id)).eq("user_id", str(user_id)).maybe_single().execute()
-    if res.data and isinstance(res.data, dict):
-        return res.data.get("team_name")
-    return None
+    res = db.table("user_teams").select("team_name, is_active").eq("guild_id", str(guild_id)).eq("user_id", str(user_id)).execute()
+    rows = res.data or []
+    out = []
+    for r in rows:
+        if isinstance(r, dict) and r.get("team_name"):
+            out.append({"team_name": r["team_name"], "is_active": r.get("is_active", True)})
+    return out
+
+
+async def get_user_team(guild_id: str, user_id: str) -> str | None:
+    """Active team for context (is_active=true), or first team if no is_active column / single team."""
+    teams = await get_user_teams(guild_id, user_id)
+    if not teams:
+        return None
+    active = [t["team_name"] for t in teams if t.get("is_active", True)]
+    return active[0] if active else teams[0]["team_name"]
 
 
 async def set_user_team(guild_id: str, user_id: str, team_name: str) -> None:
+    """Add (or re-add) user to team and set it as active."""
     db = get_client()
+    g, u, n = str(guild_id), str(user_id), team_name.strip()
     db.table("user_teams").upsert(
-        {"guild_id": str(guild_id), "user_id": str(user_id), "team_name": team_name},
-        on_conflict="guild_id,user_id",
+        {"guild_id": g, "user_id": u, "team_name": n, "is_active": True},
+        on_conflict="guild_id,user_id,team_name",
     ).execute()
+    # Deactivate other teams for this user
+    others = db.table("user_teams").select("id").eq("guild_id", g).eq("user_id", u).neq("team_name", n).execute()
+    for row in (others.data or []):
+        if row.get("id"):
+            db.table("user_teams").update({"is_active": False}).eq("id", row["id"]).execute()
 
 
-async def remove_user_team(guild_id: str, user_id: str) -> None:
+async def set_active_team(guild_id: str, user_id: str, team_name: str) -> None:
+    """Set which team is active for this user (must already be in the team)."""
     db = get_client()
-    db.table("user_teams").delete().eq("guild_id", str(guild_id)).eq("user_id", str(user_id)).execute()
+    g, u, n = str(guild_id), str(user_id), team_name.strip()
+    db.table("user_teams").update({"is_active": False}).eq("guild_id", g).eq("user_id", u).execute()
+    db.table("user_teams").update({"is_active": True}).eq("guild_id", g).eq("user_id", u).eq("team_name", n).execute()
+
+
+async def remove_user_team(guild_id: str, user_id: str, team_name: str | None = None) -> None:
+    """Remove one membership (if team_name given) or all memberships for this user."""
+    db = get_client()
+    q = db.table("user_teams").delete().eq("guild_id", str(guild_id)).eq("user_id", str(user_id))
+    if team_name:
+        q = q.eq("team_name", team_name.strip())
+    q.execute()
 
 
 async def remove_user_teams_for_team(guild_id: str, team_name: str) -> None:

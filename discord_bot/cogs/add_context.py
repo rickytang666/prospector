@@ -1,4 +1,4 @@
-"""Add documentation sources (Notion, Confluence, link) to your team's context."""
+
 import asyncio
 import hashlib
 import discord
@@ -80,7 +80,7 @@ class AddContext(commands.Cog):
             await db.upsert_team_context(ctx)
 
         await interaction.followup.send(
-            f"Added **{len(new_chunks)}** new chunk(s) from that source to **{team_name}**. Run `/analyze-team` to refresh your context.",
+            f"Added **{len(new_chunks)}** new chunk(s) to **{team_name}**. Use `/analyze-team` to refresh the summary.",
             ephemeral=True,
         )
 
