@@ -4,6 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
 from google import genai
 from bs4 import BeautifulSoup
@@ -113,6 +114,140 @@ def discover_teams():
 def _save_teams(teams):
     with open(teams_file, "w") as f:
         json.dump(teams, f, indent=2)
+
+
+sponsor_keywords = {"sponsor", "sponsors", "partner", "partners", "support", "funding", "donor", "supporters"}
+sponsor_pages_file = data_dir / "team_sponsor_pages.json"
+
+
+def _score_link(href: str, text: str) -> int:
+    score = 0
+    h, t = href.lower(), text.lower()
+    for kw in sponsor_keywords:
+        if kw in h:
+            score += 2
+        if kw in t:
+            score += 1
+    return score
+
+
+def _get_internal_links(html: str, base_url: str) -> list[tuple[str, str]]:
+    soup = BeautifulSoup(html, "html.parser")
+    base_domain = urlparse(base_url).netloc
+    links = []
+    seen = set()
+    for a in soup.find_all("a", href=True):
+        full = urljoin(base_url, a["href"])
+        if urlparse(full).netloc == base_domain and full not in seen:
+            seen.add(full)
+            links.append((full, a.get_text(strip=True)))
+    return links
+
+
+def _pick_sponsor_page_llm(links: list[tuple[str, str]], team_name: str) -> tuple[str | None, bool]:
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    link_list = [{"url": url, "text": text} for url, text in links[:15]]
+    prompt = f"""From {team_name}'s website navigation, which URL is most likely their sponsors or partners page?
+Return JSON: {{"url": "...", "found": true}}
+If none look like a sponsors/partners/supporters page, return {{"url": null, "found": false}}.
+Don't guess — only return found:true if you're confident.
+
+Links:
+{json.dumps(link_list)}"""
+
+    try:
+        resp = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config={"response_mime_type": "application/json"},
+        )
+        result = json.loads(resp.text)
+        return result.get("url"), bool(result.get("found", False))
+    except Exception as e:
+        print(f"  llm pick failed: {e}")
+        return None, False
+
+
+def find_sponsor_pages():
+    """for each team in teams.json, find their sponsor page url."""
+    if not teams_file.exists():
+        print("no teams.json found, run discover first")
+        return []
+
+    with open(teams_file) as f:
+        teams = json.load(f)
+
+    # resume
+    existing = {}
+    if sponsor_pages_file.exists():
+        with open(sponsor_pages_file) as f:
+            for entry in json.load(f):
+                existing[entry["name"]] = entry
+        print(f"resuming: {len(existing)} teams already processed")
+
+    results = list(existing.values())
+
+    to_process = [t for t in teams if t["name"] not in existing]
+    skipped_no_url = [t for t in to_process if not t.get("website_url")]
+    to_process = [t for t in to_process if t.get("website_url")]
+
+    for t in skipped_no_url:
+        results.append({"name": t["name"], "website_url": None, "sponsor_page_url": None, "found": False, "reason": "no website"})
+
+    print(f"{len(to_process)} teams to process, {len(skipped_no_url)} skipped (no website)")
+
+    for i, team in enumerate(to_process):
+        name = team["name"]
+        url = team["website_url"]
+        is_uw = team.get("is_uw_subdomain", False)
+        print(f"[{i+1}/{len(to_process)}] {name} ({url})")
+
+        if is_uw:
+            print(f"  skipping uw subdomain (handle separately)")
+            results.append({"name": name, "website_url": url, "sponsor_page_url": None, "found": False, "reason": "uw_subdomain"})
+            _save_sponsor_pages(results)
+            continue
+
+        try:
+            html = fetch_page(url)
+        except Exception as e:
+            print(f"  failed to fetch homepage: {e}")
+            results.append({"name": name, "website_url": url, "sponsor_page_url": None, "found": False, "reason": f"fetch_error: {e}"})
+            _save_sponsor_pages(results)
+            continue
+
+        links = _get_internal_links(html, url)
+
+        # heuristic: score every link
+        scored = [(score, link_url, text) for link_url, text in links if (score := _score_link(link_url, text)) > 0]
+        scored.sort(reverse=True)
+
+        if scored:
+            best_score, best_url, best_text = scored[0]
+            print(f"  heuristic match (score={best_score}): {best_url} [{best_text!r}]")
+            results.append({"name": name, "website_url": url, "sponsor_page_url": best_url, "found": True, "reason": "heuristic"})
+            _save_sponsor_pages(results)
+        else:
+            print(f"  no heuristic match, asking llm ({len(links)} links)...")
+            sponsor_url, found = _pick_sponsor_page_llm(links, name)
+            if found and sponsor_url:
+                print(f"  llm picked: {sponsor_url}")
+            else:
+                print(f"  llm: not found")
+            results.append({"name": name, "website_url": url, "sponsor_page_url": sponsor_url, "found": found, "reason": "llm"})
+            _save_sponsor_pages(results)
+            time.sleep(1)  # rate limit gemini
+
+        time.sleep(0.5)
+
+    found_count = sum(1 for r in results if r["found"])
+    print(f"\ndone. {found_count}/{len(results)} teams have a sponsor page")
+    return results
+
+
+def _save_sponsor_pages(results):
+    with open(sponsor_pages_file, "w") as f:
+        json.dump(results, f, indent=2)
 
 
 def fetch_page(url):
@@ -269,7 +404,10 @@ def gather():
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "discover":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "discover":
         discover_teams()
+    elif cmd == "find_sponsors":
+        find_sponsor_pages()
     else:
         gather()
