@@ -90,14 +90,14 @@ def _score_breakdown_line(c):
     return f"sem {sem:.2f} • tag {tag:.2f} • support {sup:.2f} • uw {uw:.2f}"
 
 
-def candidates_embed(candidates, query, retrieval_metadata=None):
+def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Support Matches"):
     top = candidates[:5]
     meta = retrieval_metadata or {}
     source = meta.get("candidate_source", "unknown")
     db_status = meta.get("db_status", "n/a")
 
     embed = discord.Embed(
-        title="Top Support Matches",
+        title=title,
         description=f'{len(top)} matches for *"{query}"*\nSource: `{source}` • DB: `{db_status}`',
         color=discord.Color.blue(),
         timestamp=discord.utils.utcnow()
