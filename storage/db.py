@@ -18,6 +18,11 @@ async def get_existing_hashes(team_name: str) -> dict[str, str]:
     return {row["content_hash"]: row["id"] for row in res.data if row.get("content_hash")}
 
 
+async def delete_chunks(team_name: str) -> None:
+    db = get_client()
+    db.table("chunks").delete().eq("team_name", team_name).execute()
+
+
 async def delete_chunks_by_ids(ids: list[str]) -> None:
     if not ids:
         return
