@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 from retrieval.api import retrieve_context_pack_dict
 from discord_bot.ui.embeds import explanation_embed
+from discord_bot.ai import get_contact_infos, expand_recommended_ask
 
 
 class ExplainMatch(commands.Cog):
@@ -36,12 +37,25 @@ class ExplainMatch(commands.Cog):
             return
 
         entity = matches[0]
+        entity_name = entity.get("name", entity_id)
         support_types = entity.get("support_types") or []
+        raw_ask = support_types[0] if support_types else "Reach out to explore collaboration."
+
+        # Fetch contact info and expand the recommended ask in parallel
+        contact_list, expanded_ask = await asyncio.gather(
+            get_contact_infos([entity]),
+            expand_recommended_ask(raw_ask, entity_name, team_context["team_name"]),
+        )
+        contact = contact_list[0] if contact_list else {}
+
         explanation = {
-            "entity_name": entity.get("name", entity_id),
+            "entity_name": entity_name,
             "why_it_helps": entity.get("matched_reasons") or ["No reasons available."],
             "why_they_may_care": entity.get("evidence_snippets") or ["No evidence available."],
-            "recommended_ask": support_types[0] if support_types else "Reach out to explore collaboration.",
+            "recommended_ask": expanded_ask,
+            "contact_person": contact.get("contact_person", ""),
+            "contact_email": contact.get("contact_email", ""),
+            "website": contact.get("website", ""),
         }
 
         embed = explanation_embed(explanation, team_name=team_context["team_name"])
