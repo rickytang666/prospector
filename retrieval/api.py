@@ -52,6 +52,42 @@ def find_providers_dict(
     )
 
 
+def _support_query_enriched(team_context: TeamContext | dict[str, Any], query: str):
+    q = (query or "").strip()
+    tc = team_context if isinstance(team_context, dict) else {}
+    blockers = tc.get("blockers") or []
+    subsystems = tc.get("subsystems") or []
+    needs = tc.get("inferred_support_needs") or []
+    extra = []
+    if subsystems:
+        extra.append("subsystems: " + ", ".join(str(x) for x in subsystems[:6]))
+    if blockers:
+        extra.append("blockers: " + " | ".join(str(x) for x in blockers[:4]))
+    if needs:
+        extra.append("needs: " + ", ".join(str(x) for x in needs[:6]))
+    if not extra:
+        return q
+    if not q:
+        return "technical support for team based on analyzed blockers and subsystems. " + " ; ".join(extra)
+    return q + ". prioritize technical fit to this team context: " + " ; ".join(extra)
+
+
+def find_support_dict(
+    team_context: TeamContext | dict[str, Any],
+    query: str,
+    k: int = 5,
+    filters: dict[str, Any] | None = None,
+):
+    q2 = _support_query_enriched(team_context, query)
+    return rank_candidates_dict(
+        team_context=team_context,
+        query=q2,
+        k=k,
+        filters=filters,
+        profile="providers",
+    )
+
+
 def find_sponsors_dict(
     team_context: TeamContext | dict[str, Any],
     query: str,
@@ -84,6 +120,20 @@ def find_providers_from_payload(payload: dict[str, Any]):
     if not isinstance(f, dict):
         f = {}
     return find_providers_dict(team_context=tc, query=q, k=k, filters=f)
+
+
+def find_support_from_payload(payload: dict[str, Any]):
+    q = str(payload.get("query", ""))
+    tc = payload.get("team_context", {})
+    k = payload.get("k", 5)
+    f = payload.get("filters", {})
+    try:
+        k = int(k)
+    except Exception:
+        k = 5
+    if not isinstance(f, dict):
+        f = {}
+    return find_support_dict(team_context=tc, query=q, k=k, filters=f)
 
 
 def find_sponsors_from_payload(payload: dict[str, Any]):
