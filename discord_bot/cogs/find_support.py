@@ -2,7 +2,7 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
-from retrieval.api import rank_candidates_dict, find_providers_dict, find_sponsors_dict
+from retrieval.api import find_providers_dict, find_sponsors_dict
 from ui.embeds import candidates_embed
 from ui.buttons import CandidateView
 
@@ -31,9 +31,8 @@ class FindSupport(commands.Cog):
         await self._run_and_send(
             interaction,
             query,
-            rank_candidates_dict,
+            find_providers_dict,
             title="Top Support Matches",
-            profile="providers",
         )
 
     @app_commands.command(name="find-providers", description="Find providers and relevant entities for a technical need.")

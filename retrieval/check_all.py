@@ -4,7 +4,7 @@ from retrieval.mock_data import get_mock_team_context, get_mock_entities
 from retrieval.models import Entity, TeamContext, Blocker, WaterlooAffinityEvidence
 from retrieval.ranking import rank_candidates, reindex_entities
 from retrieval.scoring import to_set, jacc, support_fit, waterloo_affinity, compose_scores, clamp01
-from retrieval.api import rank_candidates_dict, rank_from_payload, retrieve_context_pack_dict
+from retrieval.api import rank_candidates_dict, rank_from_payload, retrieve_context_pack_dict, find_providers_dict, find_sponsors_dict
 
 
 def _ctx(needs=None):
@@ -155,6 +155,17 @@ def check_context_pack():
     assert isinstance(out.get("citations"), list)
     assert isinstance(out.get("retrieval_meta"), dict)
 
+def check_provider_sponsor_wrappers():
+    ctx = get_mock_team_context()
+    p = find_providers_dict(ctx, "mapping telemetry", k=5)
+    assert isinstance(p, dict)
+    assert p.get("retrieval_metadata", {}).get("profile") == "providers"
+    s = find_sponsors_dict(ctx, "sponsor pcb manufacturing", message="we can offer demo visibility", k=5)
+    assert isinstance(s, dict)
+    assert s.get("retrieval_metadata", {}).get("profile") == "sponsors"
+    for c in s.get("candidates", []):
+        assert (c.get("entity_type") or "").lower() == "company"
+
 
 def check_scoring():
     assert to_set(["  Mapping ", "mapping", "RF", "", "  "]) == {"mapping", "rf"}
@@ -212,6 +223,7 @@ def run_all():
         ("api_dict", check_api_dict_output),
         ("api_payload", check_payload_api),
         ("context_pack", check_context_pack),
+        ("provider_sponsor", check_provider_sponsor_wrappers),
         ("scoring", check_scoring),
         ("db_norm", check_db_norm_helpers),
     ]
