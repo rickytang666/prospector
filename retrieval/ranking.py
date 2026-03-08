@@ -10,7 +10,15 @@ from retrieval.models import (
     ScoreBreakdown,
     TeamContext,
 )
-from retrieval.config import RANKING_WEIGHTS, DEFAULT_K, LOW_CONFIDENCE_TOP1, MEDIUM_CONFIDENCE_TOP1, MIN_RESULT_SCORE
+from retrieval.config import (
+    RANKING_WEIGHTS,
+    RANKING_WEIGHTS_PROVIDERS,
+    RANKING_WEIGHTS_SPONSORS,
+    DEFAULT_K,
+    LOW_CONFIDENCE_TOP1,
+    MEDIUM_CONFIDENCE_TOP1,
+    MIN_RESULT_SCORE,
+)
 from retrieval.retrieval import semantic_search
 from retrieval.embeddings import embed_entities, get_entity_embedding as _get_emb, index_ready, corpus_size
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, compose_scores, clamp01, to_set
@@ -56,8 +64,13 @@ def _sup(e: Entity, ctx: TeamContext):
 def _wat(e: Entity):
     return waterloo_affinity(e)
 
-def _compose(sem,tag,sup,wat):
-    return compose_scores(sem, tag, sup, wat)
+def _compose(sem,tag,sup,wat,weights):
+    return (
+        float(weights["semantic"]) * sem +
+        float(weights["tag_overlap"]) * tag +
+        float(weights["support_fit"]) * sup +
+        float(weights["waterloo_affinity"]) * wat
+    )
 
 def _reasons(sb,ov,suphits,wn):
     r = build_matched_reasons(sb, ov, suphits, wn)
@@ -82,6 +95,21 @@ def _arr(v):
         z = v.strip()
         return [z] if z else []
     return [str(v)]
+
+def _profile_weights(profile: str):
+    p = (profile or "").strip().lower()
+    if p == "sponsors":
+        return dict(RANKING_WEIGHTS_SPONSORS)
+    if p == "providers":
+        return dict(RANKING_WEIGHTS_PROVIDERS)
+    return dict(RANKING_WEIGHTS)
+
+def _profile_filters(profile: str, filters: dict[str, Any] | None):
+    f = dict(filters or {})
+    p = (profile or "").strip().lower()
+    if p == "sponsors":
+        f["entity_type"] = "company"
+    return f
 
 def _entity_ok(e: Entity, filters: dict[str, Any] | None):
     if not filters:
@@ -153,7 +181,7 @@ def _ctx_obj(team_context: TeamContext | dict[str, Any]):
         warns.append("active_blockers_empty")
     return tc, warns
 
-def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
+def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None, profile: str = "providers"):
     t0 = time.perf_counter()
     _boot()
     tc, norm_warn = _ctx_obj(team_context)
@@ -168,12 +196,14 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
     kk2 = max(1, kk * 2)
 
     raw=[]
+    weights = _profile_weights(profile)
+    filters2 = _profile_filters(profile, filters)
     db_err=None
     db_status="db_ok"
     db_raw=0
     db_kept=0
     db_drop=0
-    m = fetch_candidates_from_db_with_meta(team_context=tc, query=q, k=kk2, filters=filters)
+    m = fetch_candidates_from_db_with_meta(team_context=tc, query=q, k=kk2, filters=filters2)
     db_status = m.get("status", "db_error")
     db_err = m.get("error")
     db_raw = int(m.get("raw_row_count", 0) or 0)
@@ -188,7 +218,7 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
 
     out=[]
     for e,sem in raw:
-        if not _entity_ok(e, filters):
+        if not _entity_ok(e, filters2):
             continue
         et = _s(e.tags)
         n = _s(tc.inferred_support_needs)
@@ -202,7 +232,7 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
         t = (0.7 * q_tag_score + 0.3 * ctx_tag_score) if q_tags else ctx_tag_score
         s = _sup(e,tc)
         w = _wat(e)
-        allv = _compose(sem,t,s,w)
+        allv = _compose(sem,t,s,w,weights)
         if q_tags:
             if q_ov:
                 allv += 0.18 * (len(q_ov) / max(1, len(q_tags)))
@@ -261,13 +291,14 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
             "confidence":conf,
             "used_fallback_local":src != "supabase",
             "normalization_warnings":norm_warn,
-            "weights":dict(RANKING_WEIGHTS),
-            "filters_applied":filters or {},
+            "weights":weights,
+            "profile":profile,
+            "filters_applied":filters2,
         },
     )
 
-def rank_candidates(team_context: TeamContext | dict[str, Any], query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None):
-    return _rank_candidates_phase1(team_context, query, k=k, filters=filters)
+def rank_candidates(team_context: TeamContext | dict[str, Any], query: str, k: int = DEFAULT_K, filters: dict[str, Any] | None = None, profile: str = "providers"):
+    return _rank_candidates_phase1(team_context, query, k=k, filters=filters, profile=profile)
 
 def get_entity_embedding(entity_id: str):
     return _get_emb(entity_id)

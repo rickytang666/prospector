@@ -13,8 +13,9 @@ def rank_candidates_dict(
     query: str,
     k: int = 5,
     filters: dict[str, Any] | None = None,
+    profile: str = "providers",
 ):
-    out = rank_candidates(team_context=team_context, query=query, k=k, filters=filters)
+    out = rank_candidates(team_context=team_context, query=query, k=k, filters=filters, profile=profile)
     return asdict(out)
 
 
@@ -28,11 +29,76 @@ def rank_from_payload(payload: dict[str, Any]):
         except Exception:
             k = 5
     f = payload.get("filters")
+    profile = str(payload.get("profile", "providers"))
     if f is None:
         f = {}
     if not isinstance(f, dict):
         f = {}
-    return rank_candidates_dict(team_context=tc, query=q, k=k, filters=f)
+    return rank_candidates_dict(team_context=tc, query=q, k=k, filters=f, profile=profile)
+
+
+def find_providers_dict(
+    team_context: TeamContext | dict[str, Any],
+    query: str,
+    k: int = 5,
+    filters: dict[str, Any] | None = None,
+):
+    return rank_candidates_dict(
+        team_context=team_context,
+        query=query,
+        k=k,
+        filters=filters,
+        profile="providers",
+    )
+
+
+def find_sponsors_dict(
+    team_context: TeamContext | dict[str, Any],
+    query: str,
+    message: str | None = None,
+    k: int = 5,
+    filters: dict[str, Any] | None = None,
+):
+    q = (query or "").strip()
+    m = (message or "").strip()
+    if m:
+        q = f"{q}. Sponsor pitch: {m}"
+    return rank_candidates_dict(
+        team_context=team_context,
+        query=q,
+        k=k,
+        filters=filters,
+        profile="sponsors",
+    )
+
+
+def find_providers_from_payload(payload: dict[str, Any]):
+    q = str(payload.get("query", ""))
+    tc = payload.get("team_context", {})
+    k = payload.get("k", 5)
+    f = payload.get("filters", {})
+    try:
+        k = int(k)
+    except Exception:
+        k = 5
+    if not isinstance(f, dict):
+        f = {}
+    return find_providers_dict(team_context=tc, query=q, k=k, filters=f)
+
+
+def find_sponsors_from_payload(payload: dict[str, Any]):
+    q = str(payload.get("query", ""))
+    msg = payload.get("message")
+    tc = payload.get("team_context", {})
+    k = payload.get("k", 5)
+    f = payload.get("filters", {})
+    try:
+        k = int(k)
+    except Exception:
+        k = 5
+    if not isinstance(f, dict):
+        f = {}
+    return find_sponsors_dict(team_context=tc, query=q, message=msg, k=k, filters=f)
 
 
 def retrieve_context_pack_dict(
