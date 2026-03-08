@@ -59,7 +59,7 @@ class SampleEmail(commands.Cog):
         team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
             await interaction.response.send_message(
-                "Run `/configure-team add` and `/analyze-team` first.",
+                "Run `/configure-team add` first (use `/my-team` to see teams).",
                 ephemeral=True,
             )
             return

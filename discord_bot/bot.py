@@ -28,6 +28,7 @@ bot.email_draft_cache = {}
 bot.chat_threads = set()
 
 COGS = [
+    "discord_bot.cogs.help_cog",
     "discord_bot.cogs.setup_team",
     "discord_bot.cogs.configure_team",
     "discord_bot.cogs.analyze_team",

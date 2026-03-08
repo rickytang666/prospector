@@ -9,11 +9,11 @@ from google import genai
 
 from discord_bot.config import GEMINI_API_KEY
 
-# Rate limit: min seconds between bot replies per (user_id, thread_id)
+
 CHAT_COOLDOWN_SEC = 8
 _chat_last: dict[tuple[int, int], float] = {}
 
-# Lazy imports for retrieval (run in thread to avoid blocking)
+
 def _get_context_pack(team_context, query):
     from retrieval.context_pack import retrieve_context_pack
     return retrieve_context_pack(
@@ -110,7 +110,7 @@ class Chat(commands.Cog):
         team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
             await interaction.response.send_message(
-                "Run `/configure-team add` and `/analyze-team` first so I can use your team context and sponsor data.",
+                "Run `/configure-team add` to join a team first. Use `/my-team` to see options. Context loads from the database when you chat.",
                 ephemeral=True,
             )
             return
@@ -162,7 +162,7 @@ class Chat(commands.Cog):
         from discord_bot.team_ctx import get_team_context_for_member
         team_context = await get_team_context_for_member(self.bot, guild_id, message.author.id)
         if not team_context:
-            await thread.send("Run `/configure-team add` and `/analyze-team` first so I can use your team context.")
+            await thread.send("Run `/configure-team add` to join a team (use `/my-team` to see options).")
             return
         query = (message.content or "").strip()
         if not query:

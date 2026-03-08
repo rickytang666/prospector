@@ -112,7 +112,7 @@ class SetupTeam(commands.Cog):
                 await db.upsert_team_context(ctx)
                 print(f"[setup_team] context upserted for {team_name}")
                 await interaction.followup.send(
-                    f"Ingestion complete for **{team_name}**. Run `/configure-team add` to assign yourself, then `/analyze-team`."
+                    f"Ingestion complete for **{team_name}**. Members can run `/configure-team add` to join and `/my-team` to see all teams."
                 )
             else:
                 await interaction.followup.send(

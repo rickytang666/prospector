@@ -46,7 +46,7 @@ class AnalyzeTeam(commands.Cog):
         ctx = await db.get_team_context_for_user(guild_id, user_id)
         if not ctx:
             await interaction.response.send_message(
-                "Run `/configure-team add` and pick a team first. Teams are registered with `/setup-team`.",
+                "Run `/configure-team add` to join a team first. Use `/my-team` to see available teams (admins register them with `/setup-team`).",
                 ephemeral=True,
             )
             return
