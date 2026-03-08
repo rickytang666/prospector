@@ -90,11 +90,12 @@ def _score_breakdown_line(c):
     return f"sem {sem:.2f} • tag {tag:.2f} • support {sup:.2f} • uw {uw:.2f}"
 
 
-def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Support Matches", max_items=5):
+def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Support Matches", max_items=5, contact_infos=None):
     top = candidates[:max_items]
     meta = retrieval_metadata or {}
     source = meta.get("candidate_source", "unknown")
     db_status = meta.get("db_status", "n/a")
+    contacts = {c["name"]: c for c in (contact_infos or [])}
 
     embed = discord.Embed(
         title=title,
@@ -106,9 +107,20 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
     for i, c in enumerate(top, start=1):
         reasons = "\n".join(f"> {r}" for r in c["matched_reasons"])
         breakdown = _score_breakdown_line(c)
+        contact = contacts.get(c["name"], {})
+        contact_line = ""
+        if contact.get("contact_person") or contact.get("contact_email") or contact.get("website"):
+            parts = []
+            if contact.get("contact_person"):
+                parts.append(f"Contact: {contact['contact_person']}")
+            if contact.get("contact_email"):
+                parts.append(contact["contact_email"])
+            if contact.get("website"):
+                parts.append(contact["website"])
+            contact_line = "\n" + " | ".join(parts)
         embed.add_field(
             name=f"{i}. {c['name']}",
-            value=f"`{score_bar(c['overall_score'])}`\n`{breakdown}`\n{reasons}",
+            value=f"`{score_bar(c['overall_score'])}`\n`{breakdown}`\n{reasons}{contact_line}",
             inline=False
         )
 
@@ -136,11 +148,26 @@ def explanation_embed(data, team_name=None):
         inline=False
     )
 
+    ask = data["recommended_ask"]
+    ask_preview = ask if len(ask) <= 900 else ask[:897] + "..."
     embed.add_field(
         name="Recommended ask",
-        value=f"```{data['recommended_ask']}```",
+        value=f"```{ask_preview}```",
         inline=False
     )
+
+    contact_person = data.get("contact_person", "")
+    contact_email = data.get("contact_email", "")
+    website = data.get("website", "")
+    if contact_person or contact_email or website:
+        lines = []
+        if contact_person:
+            lines.append(f"Contact: {contact_person}")
+        if contact_email:
+            lines.append(f"Email: {contact_email}")
+        if website:
+            lines.append(f"Website: {website}")
+        embed.add_field(name="How to reach them", value="\n".join(lines), inline=False)
 
     return embed
 

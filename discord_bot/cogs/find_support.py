@@ -5,6 +5,7 @@ from discord import app_commands
 from retrieval.api import find_providers_dict, find_sponsors_dict
 from discord_bot.ui.embeds import candidates_embed
 from discord_bot.ui.buttons import CandidateView
+from discord_bot.ai import get_contact_infos
 
 
 class FindSupport(commands.Cog):
@@ -22,7 +23,9 @@ class FindSupport(commands.Cog):
         result = await asyncio.to_thread(fn, team_context=team_context, query=query, k=k, **kwargs)
         candidates = result["candidates"]
         retrieval_metadata = result.get("retrieval_metadata") or {}
-        embed = candidates_embed(candidates, query, retrieval_metadata, title=title, max_items=max_items)
+        displayed = candidates[:max_items]
+        contact_infos = await get_contact_infos(displayed)
+        embed = candidates_embed(candidates, query, retrieval_metadata, title=title, max_items=max_items, contact_infos=contact_infos)
         view = CandidateView(candidates)
         await interaction.followup.send(embed=embed, view=view)
 
