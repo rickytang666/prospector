@@ -13,17 +13,116 @@ load_dotenv()
 data_dir = Path("data")
 out_file = data_dir / "companies.json"
 sources_file = Path(__file__).parent / "sources.json"
+teams_file = data_dir / "teams.json"
+
+SDC_BASE = "https://uwaterloo.ca"
+SDC_DIR_URL = f"{SDC_BASE}/sedra-student-design-centre/catalogs/directory-teams/category/all-student-design-teams"
+
+
+def discover_teams():
+    """scrape sdc directory"""
+    data_dir.mkdir(exist_ok=True)
+
+    existing = {}
+    if teams_file.exists():
+        with open(teams_file) as f:
+            for t in json.load(f):
+                existing[t["name"]] = t
+        print(f"resuming: {len(existing)} teams already done")
+
+    print(f"fetching SDC directory...")
+    html = fetch_page(SDC_DIR_URL)
+    soup = BeautifulSoup(html, "html.parser")
+
+    profile_links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "/catalogs/student-design-teams/" in href:
+            name = a.get_text(strip=True)
+            if name and name not in existing:
+                profile_links.append((name, href))
+
+    # dedup
+    seen = set()
+    unique = []
+    for name, href in profile_links:
+        if href not in seen:
+            seen.add(href)
+            unique.append((name, href))
+
+    print(f"found {len(unique)} teams (+ {len(existing)} already done)")
+
+    teams = list(existing.values())
+
+    for i, (name, profile_path) in enumerate(unique):
+        profile_url = SDC_BASE + profile_path if profile_path.startswith("/") else profile_path
+        print(f"[{i+1}/{len(unique)}] {name}")
+
+        try:
+            profile_html = fetch_page(profile_url)
+        except Exception as e:
+            print(f"  failed to fetch profile: {e}")
+            teams.append({"name": name, "profile_url": profile_url, "website_url": None, "is_uw_subdomain": False})
+            _save_teams(teams)
+            continue
+
+        profile_soup = BeautifulSoup(profile_html, "html.parser")
+
+        website_url = None
+        for tag in profile_soup.find_all(string=re.compile(r"Website", re.I)):
+            parent = tag.parent
+            a = parent.find("a", href=True)
+            if not a:
+                # might be in the next sibling
+                nxt = parent.find_next_sibling()
+                if nxt:
+                    a = nxt.find("a", href=True)
+            if a:
+                website_url = a["href"]
+                break
+
+        if not website_url:
+            for a in profile_soup.find_all("a", href=True):
+                href = a["href"]
+                if href.startswith("http") and "uwaterloo.ca" not in href:
+                    website_url = href
+                    break
+
+        is_uw = bool(website_url and "uwaterloo.ca" in website_url)
+        if website_url:
+            print(f"  -> {website_url}" + (" (uw subdomain)" if is_uw else ""))
+        else:
+            print(f"  -> no website found")
+
+        teams.append({
+            "name": name,
+            "profile_url": profile_url,
+            "website_url": website_url,
+            "is_uw_subdomain": is_uw,
+        })
+        _save_teams(teams)
+        time.sleep(0.5)
+
+    print(f"\ndone. {len(teams)} teams total")
+    print(f"  with website: {sum(1 for t in teams if t['website_url'])}")
+    print(f"  no website: {sum(1 for t in teams if not t['website_url'])}")
+    print(f"  uw subdomains: {sum(1 for t in teams if t['is_uw_subdomain'])}")
+    return teams
+
+
+def _save_teams(teams):
+    with open(teams_file, "w") as f:
+        json.dump(teams, f, indent=2)
 
 
 def fetch_page(url):
     r = httpx.get(url, timeout=30, follow_redirects=True, headers={
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" #fake user agent to avoid being blocked
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
     })
     r.raise_for_status()
     return r.text
 
 
-# default: send html to gemini and let it figure out the companies
 def extract_with_llm(html, source):
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
@@ -169,4 +268,8 @@ def gather():
 
 
 if __name__ == "__main__":
-    gather()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "discover":
+        discover_teams()
+    else:
+        gather()
