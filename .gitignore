@@ -20,3 +20,5 @@ testinput/
 *__pycache__
 data/
 *.pyc
+
+logs.txt
