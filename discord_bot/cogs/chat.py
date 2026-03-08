@@ -1,12 +1,17 @@
-#/chat - start a thread for RAG convo 
+# /chat: RAG-backed thread; internal context is only for the configured team by name.
 
 import asyncio
+import time
 import discord
 from discord import app_commands
 from discord.ext import commands
 from google import genai
 
 from discord_bot.config import GEMINI_API_KEY
+
+# Rate limit: min seconds between bot replies per (user_id, thread_id)
+CHAT_COOLDOWN_SEC = 8
+_chat_last: dict[tuple[int, int], float] = {}
 
 # Lazy imports for retrieval (run in thread to avoid blocking)
 def _get_context_pack(team_context, query):
@@ -37,8 +42,8 @@ def _format_rag_for_prompt(pack):
             snip = " | ".join(reasons[:2]) if reasons else (snippets[0][:200] if snippets else "")
             parts.append(f"- {name}: {snip}")
     chunks = pack.get("internal_chunks", [])[:5]
-    if chunks:
-        parts.append("\nRelevant internal context (team docs/repo):")
+    if chunks and team:
+        parts.append(f"\nRelevant internal context (only for team \"{team}\" — ingested docs/repo):")
         for c in chunks:
             src = c.get("source", "internal")
             text = (c.get("text") or "")[:280]
@@ -62,23 +67,27 @@ def _build_prompt(history_turns, new_content, rag_block, team_name):
     return "\n".join(parts)
 
 
-SYSTEM_INSTRUCTION = """You are a helpful assistant for a university design team. You have access to:
-1) Internal context: their repo, docs, and team notes.
-2) External data: a database of sponsors, companies, and support providers.
+def _system_instruction(team_name: str) -> str:
+    return f"""You are a helpful assistant for the design team "{team_name}".
 
-Use the retrieved context when relevant to answer accurately. You can also chat generally—be concise and helpful. Reply in plain text (no markdown code blocks unless showing code)."""
+You have two kinds of context:
+1) Internal context: ONLY ingested docs/repo for "{team_name}" (the team named above). Do NOT claim access to other teams' Notion, GitHub, or Confluence. If you don't have a relevant chunk for something, say you don't have that info for this team.
+2) External data: a database of sponsors and support providers (companies, grants, etc.).
+
+Use the retrieved context when relevant. Be concise. Reply in plain text (no markdown code blocks unless showing code)."""
 
 
-async def _generate_reply(prompt):
+async def _generate_reply(prompt: str, team_name: str):
     if not GEMINI_API_KEY:
         return "Gemini API key not configured."
     client = genai.Client(api_key=GEMINI_API_KEY)
+    system = _system_instruction(team_name or "the team")
 
     def _run():
         resp = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt,
-            config={"system_instruction": SYSTEM_INSTRUCTION},
+            config={"system_instruction": system},
         )
         return resp.text if hasattr(resp, "text") else str(resp)
 
@@ -97,10 +106,11 @@ class Chat(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
-        team_context = self.bot.team_context_cache.get(interaction.guild_id)
+        from discord_bot.team_ctx import get_team_context_for_member
+        team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
             await interaction.response.send_message(
-                "Run `/setup-team` and `/analyze-team` first so I can use your team context and sponsor data.",
+                "Run `/configure-team add` and `/analyze-team` first so I can use your team context and sponsor data.",
                 ephemeral=True,
             )
             return
@@ -149,7 +159,11 @@ class Chat(commands.Cog):
 
         thread = message.channel
         guild_id = message.guild.id
-        team_context = self.bot.team_context_cache.get(guild_id)
+        from discord_bot.team_ctx import get_team_context_for_member
+        team_context = await get_team_context_for_member(self.bot, guild_id, message.author.id)
+        if not team_context:
+            await thread.send("Run `/configure-team add` and `/analyze-team` first so I can use your team context.")
+            return
         query = (message.content or "").strip()
         if not query:
             return
@@ -175,11 +189,18 @@ class Chat(commands.Cog):
                 pass
 
         team_name = (team_context or {}).get("team_name", "the team")
+        key = (message.author.id, thread.id)
+        now = time.monotonic()
+        if key in _chat_last and (now - _chat_last[key]) < CHAT_COOLDOWN_SEC:
+            await thread.send("Please wait a few seconds between messages.")
+            return
+        _chat_last[key] = now
+
         prompt = _build_prompt(history, query, rag_block, team_name)
 
         async with thread.typing():
             try:
-                reply = await _generate_reply(prompt)
+                reply = await _generate_reply(prompt, team_name)
             except Exception as e:
                 reply = f"Sorry, I couldn't generate a reply: {e}"
 

@@ -1,7 +1,8 @@
 import asyncio
 import hashlib
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from rate_limit import limiter
 from storage import db
 from internal_context.ingestion.website import scrape_website
 from internal_context.ingestion.github import scrape_github
@@ -24,7 +25,8 @@ class IngestRequest(BaseModel):
 
 
 @router.post("/ingest")
-async def ingest(req: IngestRequest):
+@limiter.limit("15/minute")
+async def ingest(request: Request, req: IngestRequest):
     chunks = []
     ctx = None
 

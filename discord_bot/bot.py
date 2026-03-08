@@ -29,11 +29,15 @@ bot.chat_threads = set()
 
 COGS = [
     "discord_bot.cogs.setup_team",
+    "discord_bot.cogs.configure_team",
     "discord_bot.cogs.analyze_team",
+    "discord_bot.cogs.add_context",
     "discord_bot.cogs.find_support",
     "discord_bot.cogs.explain_match",
     "discord_bot.cogs.recruit_gap",
     "discord_bot.cogs.chat",
+    "discord_bot.cogs.nuke",
+    "discord_bot.cogs.remove_from_memory",
     "discord_bot.cogs.sample_email",
     "discord_bot.cogs.send_email",
 ]
