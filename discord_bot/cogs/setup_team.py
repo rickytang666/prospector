@@ -35,7 +35,7 @@ class SetupTeam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="setup-team", description="Configure a design team and ingest their repository.")
+    @app_commands.command(name="setup-team", description="Register a team and ingest its repository (first step, server-wide).")
     @app_commands.describe(
         team_name="Name of the team (e.g. UW Orbital)",
         repo="GitHub org URL (e.g. https://github.com/UWOrbital)",
@@ -53,16 +53,16 @@ class SetupTeam(commands.Cog):
         notion_url: str = "",
         confluence_url: str = "",
     ):
-        guild_id = interaction.guild_id
+        guild_id = str(interaction.guild_id) if interaction.guild_id else ""
+        if not guild_id:
+            await interaction.response.send_message("Use this in a server.", ephemeral=True)
+            return
 
-        interaction.client.team_configs[guild_id] = {
-            "repo_url": repo,
-            "team_name": team_name,
-        }
+        await db.upsert_team(guild_id, team_name, repo)
 
         await interaction.response.defer()
         await interaction.followup.send(
-            f"Team **{team_name}** configured. Ingesting repository — this may take a minute..."
+            f"Team **{team_name}** registered. Ingesting repository — this may take a minute..."
         )
 
         try:
@@ -112,12 +112,11 @@ class SetupTeam(commands.Cog):
                 await db.upsert_team_context(ctx)
                 print(f"[setup_team] context upserted for {team_name}")
                 await interaction.followup.send(
-                    f"Ingestion complete for **{team_name}** — {len(new_chunks)} new chunks indexed. "
-                    f"Run `/analyze-team` to load the context."
+                    f"Ingestion complete for **{team_name}**. Members can run `/configure-team add` to join and `/my-team` to see all teams."
                 )
             else:
                 await interaction.followup.send(
-                    f"No chunks found for **{team_name}**. Check that the GitHub org URL is correct."
+                    f"No chunks found for **{team_name}**. Team is registered. Check the GitHub org URL or run `/add-context` later."
                 )
         except Exception as e:
             print(f"[setup_team] ingestion error: {e}")

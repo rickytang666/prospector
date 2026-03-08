@@ -56,23 +56,26 @@ def team_context_embed(context):
         owner = parts[parts.index("github.com") + 1]
         embed.set_thumbnail(url=f"https://github.com/{owner}.png")
 
-    embed.add_field(
-        name="Subsystems",
-        value="\n".join(f"• {s}" for s in context["subsystems"]),
-        inline=False
-    )
+    if context.get("subsystems"):
+        embed.add_field(
+            name="Subsystems",
+            value="\n".join(f"• {s}" for s in context["subsystems"]),
+            inline=False
+        )
 
-    embed.add_field(
-        name="Blockers",
-        value="\n".join(f"• {b}" for b in context["blockers"]),
-        inline=False
-    )
+    if context.get("blockers"):
+        embed.add_field(
+            name="Blockers",
+            value="\n".join(f"• {b}" for b in context["blockers"]),
+            inline=False
+        )
 
-    embed.add_field(
-        name="Tech Stack",
-        value=" ".join(f"`{t}`" for t in context["tech_stack"]),
-        inline=False
-    )
+    if context.get("tech_stack"):
+        embed.add_field(
+            name="Tech Stack",
+            value=" ".join(f"`{t}`" for t in context["tech_stack"]),
+            inline=False
+        )
 
     return embed
 

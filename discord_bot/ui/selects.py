@@ -33,7 +33,8 @@ class CandidateSelect(discord.ui.Select):
             )
             return
 
-        team_context = interaction.client.team_context_cache.get(interaction.guild_id)
+        key = (str(interaction.guild_id), str(interaction.user.id))
+        team_context = getattr(interaction.client, "team_context_cache", {}).get(key)
         team_name = team_context["team_name"] if team_context else None
         embed = explanation_embed(explanation, team_name=team_name)
         await interaction.response.send_message(embed=embed)

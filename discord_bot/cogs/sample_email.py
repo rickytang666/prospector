@@ -3,7 +3,7 @@ from google import genai
 from discord import app_commands
 from discord.ext import commands
 
-from config import GEMINI_API_KEY
+from discord_bot.config import GEMINI_API_KEY
 from discord_bot.ui.buttons import EmailView
 from discord_bot.ui.embeds import email_draft_embed
 
@@ -55,10 +55,11 @@ class SampleEmail(commands.Cog):
         type: app_commands.Choice[str],
         subject_line: str,
     ):
-        team_context = self.bot.team_context_cache.get(interaction.guild_id)
+        from discord_bot.team_ctx import get_team_context_for_member
+        team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
             await interaction.response.send_message(
-                "No team context found. Run `/setup-team` and `/analyze-team` first.",
+                "Run `/configure-team add` first (use `/my-team` to see teams).",
                 ephemeral=True,
             )
             return

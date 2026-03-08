@@ -2,7 +2,7 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
-from retrieval.api import find_support_dict, find_providers_dict, find_sponsors_dict
+from retrieval.api import find_support_dict, find_providers_dict
 from discord_bot.ui.embeds import candidates_embed
 from discord_bot.ui.buttons import CandidateView
 from discord_bot.ai import get_contact_infos
@@ -15,9 +15,11 @@ class FindSupport(commands.Cog):
 
     async def _run_and_send(self, interaction: discord.Interaction, query: str, fn, title: str, k: int = 5, max_items: int = 5, **kwargs):
         guild_id = interaction.guild_id
-        team_context = interaction.client.team_context_cache.get(guild_id)
+        user_id = interaction.user.id
+        from discord_bot.team_ctx import get_team_context_for_member
+        team_context = await get_team_context_for_member(interaction.client, guild_id, user_id)
         if not team_context:
-            await interaction.response.send_message("Run `/analyze-team` first.")
+            await interaction.response.send_message("Run `/configure-team add` first (use `/my-team` to see teams). Context loads from the database.")
             return
         await interaction.response.defer()
         result = await asyncio.to_thread(fn, team_context=team_context, query=query, k=k, **kwargs)
@@ -45,18 +47,6 @@ class FindSupport(commands.Cog):
             query,
             find_providers_dict,
             title="Top Provider Matches",
-        )
-
-    @app_commands.command(name="find-sponsors", description="Find sponsor-aligned companies for your team.")
-    async def find_sponsors(self, interaction: discord.Interaction, query: str, message: str | None = None):
-        await self._run_and_send(
-            interaction,
-            query,
-            find_sponsors_dict,
-            title="Top Sponsor Matches",
-            k=200,
-            max_items=25,
-            message=message,
         )
 
 

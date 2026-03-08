@@ -68,7 +68,8 @@ class CandidateButton(discord.ui.Button):
             "why_they_may_care": c.get("evidence_snippets") or ["No evidence available."],
             "recommended_ask": support_types[0] if support_types else "Reach out to explore collaboration.",
         }
-        team_context = interaction.client.team_context_cache.get(interaction.guild_id)
+        key = (str(interaction.guild_id), str(interaction.user.id))
+        team_context = getattr(interaction.client, "team_context_cache", {}).get(key)
         team_name = team_context["team_name"] if team_context else None
         embed = explanation_embed(explanation, team_name=team_name)
         await interaction.response.send_message(embed=embed)

@@ -5,21 +5,17 @@ import pathlib
 import discord
 from discord.ext import commands
 
-_BOT_DIR = pathlib.Path(__file__).parent.resolve()
-_ROOT_DIR = _BOT_DIR.parent
-# Project root must be in sys.path for storage/retrieval/internal_context imports.
+_ROOT_DIR = pathlib.Path(__file__).parent.parent.resolve()
+# Only the project root needs to be on sys.path.
+# Discord-specific cogs use explicit `from discord_bot.config import X` so they
+# never clash with the backend root config.py.
 if str(_ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(_ROOT_DIR))
-# discord_bot/ must be at index 0 so discord_bot/config.py (with GEMINI_API_KEY etc.)
-# shadows the root config.py. Unconditional remove+insert handles the case where
-# Python pre-populated sys.path[0] with the script dir before our code runs.
-try:
-    sys.path.remove(str(_BOT_DIR))
-except ValueError:
-    pass
-sys.path.insert(0, str(_BOT_DIR))
 
-from config import DISCORD_TOKEN, GUILD_ID
+from discord_bot.config import DISCORD_TOKEN, GUILD_ID
+
+if not GUILD_ID:
+    raise ValueError("GUILD_ID environment variable is not set — cannot sync slash commands.")
 
 intents = discord.Intents.default()
 intents.message_content = True  # required for /chat thread messages
@@ -32,12 +28,17 @@ bot.email_draft_cache = {}
 bot.chat_threads = set()
 
 COGS = [
+    "discord_bot.cogs.help_cog",
     "discord_bot.cogs.setup_team",
+    "discord_bot.cogs.configure_team",
     "discord_bot.cogs.analyze_team",
+    "discord_bot.cogs.add_context",
     "discord_bot.cogs.find_support",
     "discord_bot.cogs.explain_match",
     "discord_bot.cogs.recruit_gap",
     "discord_bot.cogs.chat",
+    "discord_bot.cogs.nuke",
+    "discord_bot.cogs.remove_from_memory",
     "discord_bot.cogs.sample_email",
     "discord_bot.cogs.send_email",
 ]

@@ -35,27 +35,34 @@ class AnalyzeTeam(commands.Cog):
                     out.append({"role": str(n), "reason": "Inferred from analyzed team needs."})
         return out[:6]
 
-    @app_commands.command(name="analyze-team", description="Analyze the configured team repository and infer team context.")
+    @app_commands.command(name="analyze-team", description="Load your team's context (run after configure-team add).")
     async def analyze_team(self, interaction: discord.Interaction):
+        guild_id = str(interaction.guild_id) if interaction.guild_id else ""
+        user_id = str(interaction.user.id)
+        if not guild_id:
+            await interaction.response.send_message("Use this in a server.", ephemeral=True)
+            return
 
-        guild_id = interaction.guild_id
-        config = interaction.client.team_configs.get(guild_id)
-
-        if not config:
-            await interaction.response.send_message("Run `/setup-team` first.")
+        ctx = await db.get_team_context_for_user(guild_id, user_id)
+        if not ctx:
+            await interaction.response.send_message(
+                "Run `/configure-team add` to join a team first. Use `/my-team` to see available teams (admins register them with `/setup-team`).",
+                ephemeral=True,
+            )
             return
 
         await interaction.response.defer()
-        print("[analyze_team] deferred, starting db lookup")
+<<<<<<< HEAD
 
         team_name = config["team_name"]
-        print(f"[analyze_team] calling get_team_context for '{team_name}'")
         stored = await db.get_team_context(team_name)
-        print(f"[analyze_team] db returned: {stored}")
 
+=======
+        stored = await db.get_team_context(ctx["team_name"])
+>>>>>>> 37f84260dcddf53ec65b52a28d5cd3165dc3dc5c
         if not stored:
             await interaction.followup.send(
-                f"No context found for **{team_name}**. Ingest data first via `POST /internal/ingest`.",
+                f"No ingested context for **{ctx['team_name']}**. Run `/setup-team` for that team first.",
                 ephemeral=True,
             )
             return
@@ -64,25 +71,20 @@ class AnalyzeTeam(commands.Cog):
         needs = stored.get("needs", [])
         recruiting_gaps = self._build_recruiting_gaps(blockers, needs)
         team_context = {
-            "team_name": team_name,
-            "repo": config["repo_url"],
-            "repo_url": config["repo_url"],
-            "subsystems": stored.get("focus_areas", []),
-            "tech_stack": stored.get("tech_stack", []),
-            "blockers": blockers,
-            # Shape expected by retrieval.api (ranking uses active_blockers + inferred_support_needs)
-            "active_blockers": [{"summary": b, "tags": [], "severity": "medium"} for b in blockers],
-            "inferred_support_needs": needs,
+            **ctx,
             "recruiting_gaps": recruiting_gaps,
-            "context_summary": stored.get("raw_llm_output", ""),
         }
-        print(f"[analyze_team] built team_context, sending embed")
+<<<<<<< HEAD
         interaction.client.team_context_cache[guild_id] = team_context
+=======
+        key = (guild_id, user_id)
+        if not hasattr(interaction.client, "team_context_cache"):
+            interaction.client.team_context_cache = {}
+        interaction.client.team_context_cache[key] = team_context
+>>>>>>> 37f84260dcddf53ec65b52a28d5cd3165dc3dc5c
 
         embed = team_context_embed(team_context)
-        print(f"[analyze_team] calling followup.send")
         await interaction.followup.send(embed=embed)
-        print(f"[analyze_team] done")
 
 
 async def setup(bot):

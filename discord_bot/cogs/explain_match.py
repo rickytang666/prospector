@@ -16,10 +16,12 @@ class ExplainMatch(commands.Cog):
     async def explain_match(self, interaction: discord.Interaction, entity_id: str):
 
         guild_id = interaction.guild_id
-        team_context = interaction.client.team_context_cache.get(guild_id)
+        user_id = interaction.user.id
+        from discord_bot.team_ctx import get_team_context_for_member
+        team_context = await get_team_context_for_member(interaction.client, guild_id, user_id)
 
         if not team_context:
-            await interaction.response.send_message("Run `/analyze-team` first.")
+            await interaction.response.send_message("Run `/configure-team add` first (use `/my-team` to see teams).")
             return
 
         await interaction.response.defer()

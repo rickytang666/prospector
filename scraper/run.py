@@ -3,8 +3,9 @@ scraper pipeline endpoint
 use as a FastAPI router: app.include_router(router, prefix="/scraper")
 or run standalone: python -m scraper.run
 """
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
+from rate_limit import limiter
 from pathlib import Path
 import json
 import os
@@ -289,9 +290,11 @@ class CleanupParams(BaseModel):
     raw_pages: bool = True
 
 
-# clean up 
+# clean up
 @router.post("/cleanup")
+@limiter.limit("10/minute")
 def cleanup(
+    request: Request,
     params: CleanupParams = CleanupParams(),
     _auth: None = Depends(require_scraper_secret),
 ):
@@ -312,7 +315,9 @@ class RunParams(BaseModel):
 
 
 @router.post("/run")
+@limiter.limit("10/minute")
 def run_pipeline(
+    request: Request,
     params: RunParams = RunParams(),
     _auth: None = Depends(require_scraper_secret),
 ):
