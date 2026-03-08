@@ -522,7 +522,13 @@ def gather():
     with open(sources_file) as f:
         sources = json.load(f)
 
+    # load existing so we append rather than overwrite
     all_companies = []
+    if out_file.exists():
+        with open(out_file) as f:
+            all_companies = json.load(f)
+        print(f"loaded {len(all_companies)} existing companies")
+
     for src in sources:
         print(f"fetching {src['url']}...")
 
