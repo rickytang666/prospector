@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -59,7 +60,6 @@ class SetupTeam(commands.Cog):
         )
 
         try:
-            await db.delete_chunks(team_name)
             chunks = []
 
             if website_url:
@@ -72,13 +72,25 @@ class SetupTeam(commands.Cog):
             print(f"[setup_team] {len(github_chunks)} chunks from github")
 
             if chunks:
-                chunks = await asyncio.to_thread(embed_chunks, chunks)
-                await db.insert_chunks(chunks)
+                for c in chunks:
+                    c.content_hash = hashlib.md5(c.content.encode()).hexdigest()
+
+                existing = await db.get_existing_hashes(team_name)
+                new_hashes = {c.content_hash for c in chunks}
+                stale_ids = [cid for h, cid in existing.items() if h not in new_hashes]
+                await db.delete_chunks_by_ids(stale_ids)
+
+                new_chunks = [c for c in chunks if c.content_hash not in existing]
+                if new_chunks:
+                    new_chunks = await asyncio.to_thread(embed_chunks, new_chunks)
+                    await db.insert_chunks(new_chunks)
+                print(f"[setup_team] inserted {len(new_chunks)}, skipped {len(chunks) - len(new_chunks)} unchanged")
+
                 ctx = await asyncio.to_thread(extract_team_context, team_name, chunks)
                 await db.upsert_team_context(ctx)
                 print(f"[setup_team] context upserted for {team_name}")
                 await interaction.followup.send(
-                    f"Ingestion complete for **{team_name}** — {len(chunks)} chunks indexed. "
+                    f"Ingestion complete for **{team_name}** — {len(new_chunks)} new chunks indexed. "
                     f"Run `/analyze-team` to load the context."
                 )
             else:
