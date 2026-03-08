@@ -19,13 +19,6 @@ class FindSupport(commands.Cog):
         try:
             await interaction.response.defer()
         except discord.NotFound:
-            # Interaction token expired before we could acknowledge it.
-            ch = interaction.channel
-            if ch is not None:
-                try:
-                    await ch.send("That command timed out before Discord acknowledged it. Please run `/find-support` again.")
-                except Exception:
-                    pass
             return
 
         from discord_bot.team_ctx import get_team_context_for_member
