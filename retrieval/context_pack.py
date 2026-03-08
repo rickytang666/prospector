@@ -4,7 +4,7 @@ from dataclasses import asdict
 from typing import Any
 
 from retrieval.models import TeamContext, Blocker
-from retrieval.ranking import rank_candidates
+from retrieval.llm_ranking import llm_rank_candidates_dict
 from retrieval.internal_retrieval import fetch_internal_chunks_with_meta
 
 
@@ -81,13 +81,13 @@ def retrieve_context_pack(
     chunk_filters: dict[str, Any] | None = None,
 ):
     tc = _ctx_obj(team_context)
-    ranked = rank_candidates(team_context=tc, query=query, k=k_entities, filters=entity_filters)
+    ranked = llm_rank_candidates_dict(team_context=tc, query=query, k=k_entities, filters=entity_filters)
     f2 = chunk_filters or {}
     src_boost = {}
     if not f2:
         f2, src_boost = _infer_chunk_filters(query)
     cm = fetch_internal_chunks_with_meta(team_context=tc, query=query, k=max(3, k_chunks * 2), filters=f2)
-    ents = [asdict(c) for c in ranked.candidates]
+    ents = ranked.get("candidates", [])
     chunks = _chunk_rerank(cm.get("chunks") or [], query, src_boost)[:max(0, k_chunks)]
     cits = []
     for c in ents[:3]:
@@ -95,7 +95,7 @@ def retrieve_context_pack(
             "type": "entity",
             "id": c.get("entity_id"),
             "name": c.get("name"),
-            "snippet": (c.get("evidence_snippets") or [""])[0],
+            "snippet": (c.get("evidence_snippets") or [""])[0] if c.get("evidence_snippets") else "",
         })
     for ch in chunks[:3]:
         cits.append({
@@ -111,7 +111,7 @@ def retrieve_context_pack(
         "internal_chunks": chunks,
         "citations": cits,
         "retrieval_meta": {
-            "entity": ranked.retrieval_metadata,
+            "entity": ranked.get("retrieval_metadata", {}),
             "chunks": {
                 "status": cm.get("status"),
                 "error": cm.get("error"),
