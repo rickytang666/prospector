@@ -14,6 +14,7 @@ load_dotenv()
 data_dir = Path("data")
 out_file = data_dir / "companies.json"
 sources_file = Path(__file__).parent / "sources.json"
+seeds_file = Path(__file__).parent / "seeds.json"
 teams_file = data_dir / "teams.json"
 
 SDC_BASE = "https://uwaterloo.ca"
@@ -479,6 +480,41 @@ def gather_from_teams():
     print(f"saved to {out_file}")
 
 
+def gather_seeds():
+    """inject hardcoded seeds"""
+    data_dir.mkdir(exist_ok=True)
+
+    with open(seeds_file) as f:
+        seeds = json.load(f)
+
+    existing = []
+    if out_file.exists():
+        with open(out_file) as f:
+            existing = json.load(f)
+
+    existing_names = {c["name"].lower().strip() for c in existing}
+
+    added = 0
+    for s in seeds:
+        if s["name"].lower().strip() in existing_names:
+            print(f"  skip (already exists): {s['name']}")
+            continue
+        existing.append({
+            "name": s["name"],
+            "url": s["url"],
+            "source_url": s["url"],
+            "source_type": "hardcoded_seed",
+            "vertical": s.get("vertical"),
+            "team": None,
+        })
+        added += 1
+        print(f"  added: {s['name']}")
+
+    with open(out_file, "w") as f:
+        json.dump(existing, f, indent=2)
+    print(f"\nadded {added} seeds ({len(seeds) - added} already existed)")
+
+
 def gather():
     data_dir.mkdir(exist_ok=True)
 
@@ -531,6 +567,8 @@ if __name__ == "__main__":
         find_sponsor_pages()
     elif cmd == "scrape_teams":
         gather_from_teams()
+    elif cmd == "seeds":
+        gather_seeds()
     elif cmd == "reset_team" and len(sys.argv) > 2:
         # remove a team
         team_name = " ".join(sys.argv[2:]).lower()
