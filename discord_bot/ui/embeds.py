@@ -81,21 +81,34 @@ def score_bar(score, length=10):
     return f"{'█' * filled}{'░' * (length - filled)} {int(score * 100)}%"
 
 
-def candidates_embed(candidates, query):
+def _score_breakdown_line(c):
+    sb = c.get("score_breakdown") or {}
+    sem = float(sb.get("semantic_score", 0.0))
+    tag = float(sb.get("tag_overlap_score", 0.0))
+    sup = float(sb.get("support_fit_score", 0.0))
+    uw = float(sb.get("waterloo_affinity_score", 0.0))
+    return f"sem {sem:.2f} • tag {tag:.2f} • support {sup:.2f} • uw {uw:.2f}"
+
+
+def candidates_embed(candidates, query, retrieval_metadata=None):
     top = candidates[:5]
+    meta = retrieval_metadata or {}
+    source = meta.get("candidate_source", "unknown")
+    db_status = meta.get("db_status", "n/a")
 
     embed = discord.Embed(
         title="Top Support Matches",
-        description=f'{len(top)} matches for *"{query}"*',
+        description=f'{len(top)} matches for *"{query}"*\nSource: `{source}` • DB: `{db_status}`',
         color=discord.Color.blue(),
         timestamp=discord.utils.utcnow()
     )
 
     for i, c in enumerate(top, start=1):
         reasons = "\n".join(f"> {r}" for r in c["matched_reasons"])
+        breakdown = _score_breakdown_line(c)
         embed.add_field(
             name=f"{i}. {c['name']}",
-            value=f"`{score_bar(c['overall_score'])}`\n{reasons}",
+            value=f"`{score_bar(c['overall_score'])}`\n`{breakdown}`\n{reasons}",
             inline=False
         )
 

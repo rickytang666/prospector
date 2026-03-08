@@ -26,8 +26,9 @@ class FindSupport(commands.Cog):
 
         result = await asyncio.to_thread(rank_candidates_dict, team_context=team_context, query=query, k=5)
         candidates = result["candidates"]
+        retrieval_metadata = result.get("retrieval_metadata") or {}
 
-        embed = candidates_embed(candidates, query)
+        embed = candidates_embed(candidates, query, retrieval_metadata)
         view = CandidateView(candidates)
 
         await interaction.followup.send(embed=embed, view=view)
