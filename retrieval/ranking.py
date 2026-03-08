@@ -259,8 +259,15 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
         ))
 
     out = _dedupe_candidates(out)
-    out = [x for x in out if x.overall_score >= MIN_RESULT_SCORE]
-    out = out[:kk]
+    out_all = list(out)
+    min_keep = MIN_RESULT_SCORE
+    if (profile or "").strip().lower() == "sponsors":
+        min_keep = MIN_RESULT_SCORE * 0.5
+    out = [x for x in out if x.overall_score >= min_keep]
+    if not out and out_all:
+        out = out_all[: min(kk, 3)]
+    else:
+        out = out[:kk]
     top = out[0].overall_score if out else 0.0
     conf = "low"
     if top >= MEDIUM_CONFIDENCE_TOP1:
