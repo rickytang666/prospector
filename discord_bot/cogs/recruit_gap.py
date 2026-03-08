@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from ui.embeds import recruit_gap_embed
 from storage import db
 from discord_bot.ui.embeds import recruit_gap_embed
 
