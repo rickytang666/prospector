@@ -321,6 +321,7 @@ HTML:
             "source_url": source["url"],
             "source_type": source["type"],
             "team": source.get("team"),
+            "association": source.get("association"),
         })
     return companies
 

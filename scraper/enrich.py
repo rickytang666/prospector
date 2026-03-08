@@ -66,6 +66,13 @@ def get_affinity(company):
             "text": "Y Combinator company",
             "source_url": company.get("source_url", ""),
         })
+    elif src_type == "engineering_competition_sponsor":
+        assoc = company.get("association", "an engineering competition")
+        evidence.append({
+            "type": "competition_sponsor",
+            "text": f"Sponsor of {assoc} — explicitly supports student engineering teams",
+            "source_url": company.get("source_url", ""),
+        })
 
     return evidence
 
