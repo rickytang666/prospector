@@ -1,6 +1,6 @@
 import json
 from google import genai
-from config import GEMINI_API_KEY
+from discord_bot.config import GEMINI_API_KEY
 
 _client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -8,10 +8,12 @@ _client = genai.Client(api_key=GEMINI_API_KEY)
 async def get_contact_infos(candidates: list[dict]) -> list[dict]:
     """Batch Gemini call — returns contact info for each candidate in the same order.
     Each entry: {name, contact_person, contact_email, website}
+    Capped at 10 to keep prompts manageable.
     """
     if not candidates:
         return []
 
+    candidates = candidates[:10]
     names = [c.get("name", "Unknown") for c in candidates]
     prompt = f"""For each organization below, provide realistic contact information for a university engineering team seeking sponsorship or technical support.
 
@@ -60,7 +62,11 @@ Requirements:
 - Written from the perspective of a university engineering design team seeking support
 - Return only the 3 sentences, no labels or extra text"""
 
-    response = await _client.aio.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt
-    )
-    return response.text.strip()
+    try:
+        response = await _client.aio.models.generate_content(
+            model="gemini-2.0-flash", contents=prompt
+        )
+        return response.text.strip()
+    except Exception as e:
+        print(f"[ai] expand_recommended_ask failed: {e}")
+        return ask

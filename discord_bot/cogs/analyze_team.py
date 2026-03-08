@@ -46,12 +46,9 @@ class AnalyzeTeam(commands.Cog):
             return
 
         await interaction.response.defer()
-        print("[analyze_team] deferred, starting db lookup")
 
         team_name = config["team_name"]
-        print(f"[analyze_team] calling get_team_context for '{team_name}'")
         stored = await db.get_team_context(team_name)
-        print(f"[analyze_team] db returned: {stored}")
 
         if not stored:
             await interaction.followup.send(
@@ -76,13 +73,10 @@ class AnalyzeTeam(commands.Cog):
             "recruiting_gaps": recruiting_gaps,
             "context_summary": stored.get("raw_llm_output", ""),
         }
-        print(f"[analyze_team] built team_context, sending embed")
         interaction.client.team_context_cache[guild_id] = team_context
 
         embed = team_context_embed(team_context)
-        print(f"[analyze_team] calling followup.send")
         await interaction.followup.send(embed=embed)
-        print(f"[analyze_team] done")
 
 
 async def setup(bot):

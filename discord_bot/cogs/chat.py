@@ -6,7 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 from google import genai
 
-from config import GEMINI_API_KEY
+from discord_bot.config import GEMINI_API_KEY
 
 # Lazy imports for retrieval (run in thread to avoid blocking)
 def _get_context_pack(team_context, query):
