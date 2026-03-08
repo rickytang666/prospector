@@ -14,21 +14,24 @@ if __name__ == "__main__":
 from config import DISCORD_TOKEN, GUILD_ID
 
 intents = discord.Intents.default()
+intents.message_content = True  # required for /chat thread messages
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 bot.team_configs = {}
 bot.team_context_cache = {}
 bot.email_draft_cache = {}
+bot.chat_threads = set()
 
 COGS = [
-    "discord_bot.cogs.setup_team",
-    "discord_bot.cogs.analyze_team",
-    "discord_bot.cogs.find_support",
-    "discord_bot.cogs.explain_match",
-    "discord_bot.cogs.recruit_gap",
-    "discord_bot.cogs.sample_email",
-    "discord_bot.cogs.send_email",
+    "cogs.setup_team",
+    "cogs.analyze_team",
+    "cogs.find_support",
+    "cogs.explain_match",
+    "cogs.recruit_gap",
+    "cogs.chat",
+    "cogs.sample_email",
+    "cogs.send_email",
 ]
 
 async def load_cogs():
