@@ -85,47 +85,6 @@ def score_bar(score, length=10):
     return f"{'█' * filled}{'░' * (length - filled)} {int(score * 100)}%"
 
 
-def _score_breakdown_line(c):
-    sb = c.get("score_breakdown") or {}
-    sem = float(sb.get("semantic_score", 0.0))
-    tag = float(sb.get("tag_overlap_score", 0.0))
-    sup = float(sb.get("support_fit_score", 0.0))
-    uw = float(sb.get("waterloo_affinity_score", 0.0))
-    return f"sem {sem:.2f} • tag {tag:.2f} • support {sup:.2f} • uw {uw:.2f}"
-
-def _uw_tier_from_candidate(c):
-    ev = c.get("waterloo_affinity_evidence") or []
-    tier = {
-        "team_sponsor": (1.00, "Sponsor"),
-        "waterloo_partner": (0.90, "Partner"),
-        "official_partner": (0.90, "Partner"),
-        "waterloo_alumni_founder": (0.75, "Alumni"),
-        "alumni_link": (0.75, "Alumni"),
-        "startup_incubator": (0.55, "Incubator"),
-        "yc_company": (0.35, "YC"),
-        "official_page": (0.35, "UW-Linked"),
-    }
-    best_s = 0.0
-    best_l = "None"
-    seen = set()
-    note = ""
-    for x in ev:
-        if not isinstance(x, dict):
-            continue
-        t = str(x.get("type", "")).strip().lower()
-        if not t:
-            continue
-        seen.add(t)
-        s, l = tier.get(t, (0.20, "UW-Linked"))
-        if s > best_s:
-            best_s = s
-            best_l = l
-            note = str(x.get("text", "")).strip()
-    if len(seen) > 1:
-        best_s = min(1.0, best_s + 0.05)
-    return best_l, best_s, note
-
-
 def _extract_contact_line(c):
     ev = c.get("evidence_snippets") or []
     txt = " | ".join(str(x) for x in ev if x)
@@ -139,6 +98,19 @@ def _extract_contact_line(c):
         return f"Link: {url.group(0)}"
     return None
 
+def _blurb_line(c):
+    ev = c.get("evidence_snippets") or []
+    if not ev:
+        return None
+    t = str(ev[0]).strip()
+    if not t:
+        return None
+    if " (from " in t:
+        t = t.split(" (from ", 1)[0].strip()
+    if len(t) > 180:
+        t = t[:177].rstrip() + "..."
+    return t
+
 
 def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Support Matches", max_items=5, contact_infos=None):
     top = candidates[:max_items]
@@ -149,7 +121,7 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
 
     embed = discord.Embed(
         title=title,
-        description=f'{len(top)} matches for *"{query}"*\nRanked by: `semantic relevance + UW affinity`\nSource: `{source}` • DB: `{db_status}`',
+        description=f'{len(top)} matches for *"{query}"*\nRanked by: `semantic relevance`\nSource: `{source}` • DB: `{db_status}`',
         color=discord.Color.from_rgb(46, 134, 222),
         timestamp=discord.utils.utcnow()
     )
@@ -157,10 +129,7 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
     for i, c in enumerate(top, start=1):
         sb = c.get("score_breakdown") or {}
         sem = float(sb.get("semantic_score", 0.0))
-        uw = float(sb.get("waterloo_affinity_score", 0.0))
-        tier, tier_score, tier_note = _uw_tier_from_candidate(c)
-        reasons = c.get("matched_reasons") or []
-        rtxt = "\n".join(f"• {r}" for r in reasons[:2]) if reasons else "• Moderate semantic fit."
+        blurb = _blurb_line(c)
         contact = contacts.get(c["name"], {})
         contact_line = ""
         if contact.get("contact_person") or contact.get("contact_email") or contact.get("website"):
@@ -175,13 +144,9 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
         if not contact_line:
             contact_line = _extract_contact_line(c) or ""
         lines = [
-            f"`{score_bar(c['overall_score'])}`",
-            f"`sem {sem:.2f} • uw {uw:.2f}`",
-            f"`UW Tier: {tier} ({tier_score:.2f})`",
-            rtxt,
+            f"`{score_bar(sem)}`",
+            f"_{blurb}_" if blurb else "_No summary available._",
         ]
-        if tier_note:
-            lines.append(f"_UW evidence: {tier_note}_")
         if contact_line:
             lines.append(contact_line)
         embed.add_field(name=f"{i}. {c['name']}", value="\n".join(lines), inline=False)

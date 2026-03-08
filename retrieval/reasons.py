@@ -14,11 +14,9 @@ def build_matched_reasons(
         r.append("Strong semantic relevance to your current need.")
     elif sb.semantic_score >= 0.45:
         r.append("Moderate semantic relevance to your current need.")
-    if waterloo_note:
-        r.append("Waterloo-connected: " + waterloo_note)
     if not r:
-        r = ["Moderate match from available signals."]
-    return r[:2]
+        r = ["Semantic match from available context."]
+    return r[:1]
 
 
 def build_evidence_snippets(entity: Entity, overlap_tags: list[str], support_hits: list[str]):
