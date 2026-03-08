@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from ui.embeds import explanation_embed
-from testing_info import MOCK_EXPLANATIONS
 
 
 class CopyButton(discord.ui.Button):
@@ -53,23 +52,22 @@ class EmailView(discord.ui.View):
 
 class CandidateButton(discord.ui.Button):
 
-    def __init__(self, entity_id, label):
+    def __init__(self, candidate):
         super().__init__(
-            label=f"Explain {label}",
+            label=f"Explain {candidate.get('name','Candidate')}",
             style=discord.ButtonStyle.primary
         )
-        self.entity_id = entity_id
+        self.candidate = candidate
 
     async def callback(self, interaction: discord.Interaction):
-        explanation = MOCK_EXPLANATIONS.get(self.entity_id)
-
-        if not explanation:
-            await interaction.response.send_message(
-                f"No explanation available for **{self.entity_id}**.",
-                ephemeral=True
-            )
-            return
-
+        c = self.candidate
+        support_types = c.get("support_types") or []
+        explanation = {
+            "entity_name": c.get("name", c.get("entity_id", "Candidate")),
+            "why_it_helps": c.get("matched_reasons") or ["No reasons available."],
+            "why_they_may_care": c.get("evidence_snippets") or ["No evidence available."],
+            "recommended_ask": support_types[0] if support_types else "Reach out to explore collaboration.",
+        }
         team_context = interaction.client.team_context_cache.get(interaction.guild_id)
         team_name = team_context["team_name"] if team_context else None
         embed = explanation_embed(explanation, team_name=team_name)
@@ -82,4 +80,4 @@ class CandidateView(discord.ui.View):
         super().__init__(timeout=180)
 
         for candidate in candidates[:5]:
-            self.add_item(CandidateButton(candidate["entity_id"], candidate["name"]))
+            self.add_item(CandidateButton(candidate))
