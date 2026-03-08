@@ -1,112 +1,94 @@
-# 05 - Retrieval And Ranking
+# 05. Retrieval and Ranking
 
-## Top-level API surface
+## API Entry Points
 
-Main entry: `retrieval/api.py`
+File: `retrieval/api.py`
 
-Useful functions called by bot:
+Primary functions:
 
-- `find_support_dict(team_context, query, k=5)`
-- `find_providers_dict(team_context, query, k=5)`
-- `find_sponsors_dict(team_context, query, message=None, k=5)`
-- `retrieve_context_pack_dict(team_context, query, k_entities=5, k_chunks=5)`
+- `find_support_dict(...)`
+- `find_providers_dict(...)`
+- `find_sponsors_dict(...)`
+- `retrieve_context_pack_dict(...)`
+- `rank_candidates_dict(...)`
 
-## Ranking strategy
+These are used directly by Discord cogs.
 
-`rank_candidates_dict` first tries:
+## Ranking Execution Strategy
 
-- `llm_ranking.llm_rank_candidates_dict`
+`rank_candidates_dict` attempts:
 
-If that throws, it falls back to:
+1. LLM ranking path (`retrieval/llm_ranking.py`)
+2. Deterministic fallback (`retrieval/ranking.py`) on failure
 
-- `ranking.rank_candidates` classic phase1 engine
-
-## LLM ranking path
+## LLM Ranking Path
 
 File: `retrieval/llm_ranking.py`
 
-- Loads `data/companies.json`
-- Prompts OpenRouter chat model (`google/gemini-2.5-flash-lite`)
-- Asks for top-k JSON candidates with reasons
-- Maps output into `RankedCandidate` shape
+- Loads candidates from `data/companies.json`
+- Sends query and team context to OpenRouter chat model
+- Parses JSON candidate output
+- Maps to `RankedCandidate` format
 
-Metadata marks source as `llm_in_memory`.
+Returned metadata marks mode as LLM-driven.
 
-## Classic ranking path
+## Deterministic Ranking Path
 
 File: `retrieval/ranking.py`
 
-Flow:
+Major steps:
 
-1. Normalize team context object
-2. Build query and over-retrieve `k*2`
-3. Try Supabase RPC semantic candidates first
-4. If DB empty/error, use local mock entities + local embeddings
-5. Score each entity
-6. Deduplicate by `(name, entity_type)`
-7. Filter by `MIN_RESULT_SCORE`
-8. Build confidence and metadata
+1. Normalize incoming `team_context`
+2. Build query and over-retrieve candidate set
+3. Pull semantic candidates from Supabase RPC when available
+4. Fall back to local mocked entity corpus when DB is unavailable/empty
+5. Compute score breakdown components
+6. Deduplicate and threshold candidates
+7. Return metadata including confidence and DB status
 
-Current default weights in `retrieval/config.py` are semantic-only for all profiles.
+## Score Components
 
-## Score components
+Defined across `retrieval/scoring.py` and ranking logic:
 
-From `retrieval/scoring.py` and ranking internals:
+- Semantic similarity
+- Tag overlap
+- Support fit (team needs vs support types)
+- Waterloo affinity
 
-- semantic similarity
-- tag overlap
-- support fit (team needs vs entity support types)
-- waterloo affinity
+Current configured weights in `retrieval/config.py` are semantic-focused.
 
-Even if some weights are 0 now, fields are still computed and returned.
-
-## Supabase entity RPC
-
-Migration: `migrations/003_match_entities_rpc.sql`
-
-Function:
-
-- `match_entities_for_team(query_embedding vector(1536), k int, filters jsonb)`
-
-Returns per entity:
-
-- id, name, type, summary, tags, support_types
-- affinity evidence as JSONB
-- `semantic_score`
-
-## Internal chunk retrieval
-
-File: `retrieval/internal_retrieval.py`
-
-- Calls RPC configured by `SUPABASE_RPC_MATCH_CHUNKS_FN`
-- Normalizes rows into:
-  - `chunk_id`, `text`, `source`, `source_ref`, `semantic_score`
-
-## Context pack for chat/explain
+## Context Pack Retrieval
 
 File: `retrieval/context_pack.py`
 
-`retrieve_context_pack` returns:
+`retrieve_context_pack(...)` returns:
 
 - `entity_matches`
 - `internal_chunks`
 - `citations`
 - `retrieval_meta`
 
-It can infer chunk filters based on query words, then rerank chunks with:
+Internal chunk retrieval uses `retrieval/internal_retrieval.py` and an RPC configured by `SUPABASE_RPC_MATCH_CHUNKS_FN`.
 
-- semantic score
-- query term overlap
-- source boosts
+## RPC Data Normalization
 
-## Config knobs
+File: `retrieval/db_retrieval.py`
 
-`retrieval/config.py` important settings:
+This module normalizes inconsistent row payload shapes from RPC responses:
 
-- ranking weights
-- default `k`
-- over-retrieve factor
-- confidence thresholds
-- min score cutoff
+- list/string field coercion
+- affinity JSON normalization
+- semantic score normalization to `[0,1]`
+
+## Configuration
+
+File: `retrieval/config.py`
+
+Notable parameters:
+
+- Ranking weight profiles
+- Default and over-retrieve `k`
+- Confidence thresholds
+- Minimum result score
 - RPC function names
-- fallback local embedding toggle and dimension
+- Fallback embedding controls

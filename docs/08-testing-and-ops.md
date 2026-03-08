@@ -1,21 +1,21 @@
-# 08 - Testing And Ops
+# 08. Testing and Operations
 
-## Quick tests
+## Validation Commands
 
-### Retrieval smoke
+### Retrieval Smoke Test
 
 ```bash
 python test_rag.py
 ```
 
-### Retrieval script with custom query
+### Retrieval Script with Optional Query/K
 
 ```bash
 python scripts/test_retrieval.py
 python scripts/test_retrieval.py "cloud credits for student teams" --k 10
 ```
 
-### Internal consistency checks
+### Retrieval Internal Checks
 
 ```bash
 python -m retrieval.check_all
@@ -23,71 +23,57 @@ python -m retrieval.functional_eval
 python -m retrieval.functional_rag_eval
 ```
 
-### Scraper mini test
+### Scraper Pipeline Test
 
 ```bash
 python scraper/test_pipeline.py
 ```
 
-## Run scripts
+## Runtime Scripts
 
-- `scripts/run_app.sh`
-  - clears `__pycache__`
-  - starts `uvicorn main:app`
+- `scripts/run_app.sh`: clear cache folders and start FastAPI app
+- `scripts/run_bot.sh`: clear bot cache folders and start bot-only process
 
-- `scripts/run_bot.sh`
-  - starts bot-only mode
-  - mainly for bot debugging
+## Troubleshooting Guide
 
-## Debug checklist by symptom
+### Team Context Not Found in Commands
 
-### Command says no team context
+1. Verify user membership exists in `user_teams`
+2. Verify team exists in `teams`
+3. Verify `team_context` row exists for that team
+4. Re-run `/analyze-team` to refresh cache
 
-1. Check user has membership in `user_teams`
-2. Check team has row in `teams`
-3. Check `team_context` row exists for that `team_name`
-4. Run `/analyze-team` to refresh cache
+### Retrieval Falling Back to Local Data
 
-### Retrieval returns fallback local data
+Inspect `retrieval_metadata` for:
 
-- Check `.env` has Supabase keys
-- Verify RPC function exists and is callable
-- Confirm `entity_embeddings` has rows
-- Check metadata fields:
-  - `candidate_source`
-  - `db_status`
-  - `db_error`
+- `candidate_source`
+- `db_status`
+- `db_error`
 
-### Ingestion inserts 0 chunks
+Then verify:
 
-- Validate GitHub org URL and token scope
-- Validate source URLs are reachable
-- For Notion, page must be shared with integration token
-- For Confluence, space URL and API token must be valid
+- Supabase credentials are loaded
+- RPC function is deployed
+- `entity_embeddings` contains records
 
-### Email send fails
+### Ingestion Produces No Chunks
 
-- Verify Gmail app password, not normal password
-- Verify SMTP over 465 with TLS is allowed
-- Check `/sample_email` was run so cache has draft
+- Validate source URLs and credentials
+- Confirm GitHub org URL format and token access
+- Confirm Notion pages are shared with integration
+- Confirm Confluence API credentials are valid
 
-## Security and production hygiene
+### Email Delivery Fails
 
-- Keep `.env` out of git
-- Protect `/scraper/run` with strong `SCRAPER_SECRET`
-- Apply DB row level permissions per your Supabase policy
-- Log and rotate API errors for ingestion and scraper tasks
+- Confirm Gmail app password configuration
+- Confirm draft exists in `email_draft_cache` (run `/sample_email` first)
+- Inspect SMTP exception details returned by `/send_email`
 
-## Known rough edges
+## Operational Recommendations
 
-- LLM ranking path depends on `data/companies.json` existing
-- Cache key types are mixed in a few code paths
-- Some retrieval defaults are semantic-only right now
-- Scraper quality depends hard on source HTML quality and LLM extraction stability
-
-## Nice next upgrades
-
-1. Add unit tests for each cog command path with mocked DB and retrieval
-2. Add schema validation for `entities.json` before DB write
-3. Add observability counters for ingestion duration and retrieval fallback rate
-4. Move long-running scraper jobs to a queue worker instead of request thread
+- Keep `.env` private and out of version control
+- Rotate API credentials periodically
+- Protect `/scraper/*` endpoints with strong secrets
+- Track ingestion and retrieval errors in central logs
+- Consider moving long-running scraper tasks to background workers for production usage

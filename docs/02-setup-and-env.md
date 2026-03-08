@@ -1,15 +1,13 @@
-# 02 - Setup And Env
+# 02. Setup and Environment
 
-## Requirements
+## Prerequisites
 
-- Python 3.10+
-- A working virtual environment
-- Supabase project with pgvector extension
-- API keys for Discord, Gemini, OpenRouter, GitHub
+- Python 3.10 or newer
+- Virtual environment support
+- Supabase project with pgvector enabled
+- Valid API credentials for required integrations
 
-## Install deps
-
-From repo root:
+## Install Dependencies
 
 ```bash
 python -m venv .venv
@@ -19,11 +17,11 @@ pip install -r discord_bot/requirements.txt
 pip install -r scraper/requirements.txt
 ```
 
-## Environment variables
+## Environment Variables
 
-Use `.env.example` as template.
+Create `.env` from `.env.example`.
 
-Required for most flows:
+### Core Runtime
 
 - `DISCORD_TOKEN`
 - `GUILD_ID`
@@ -33,54 +31,48 @@ Required for most flows:
 - `SUPABASE_KEY`
 - `GITHUB_TOKEN`
 
-Email feature:
+### Email Support
 
 - `GMAIL_USER`
 - `GMAIL_APP_PASSWORD`
 
-Optional ingestion:
+### Optional Ingestion Sources
 
 - `NOTION_TOKEN`
 - `CONFLUENCE_EMAIL`
 - `CONFLUENCE_API_TOKEN`
 
-Scraper endpoint auth:
+### Scraper Router Protection
 
 - `SCRAPER_SECRET`
 
-## Start the app
+## Start the Full Stack
 
-Correct way:
+Preferred:
 
 ```bash
-uvicorn main:app --reload
+uvicorn main:app
 ```
 
-Helper script:
+Alternative helper script:
 
 ```bash
 bash scripts/run_app.sh
 ```
 
-Wrong for integrated mode:
+## Bot-Only Startup
 
 ```bash
 python discord_bot/bot.py
 ```
 
-That starts bot only and skips FastAPI routers.
+This mode skips FastAPI router startup and should only be used for isolated bot debugging.
 
-## Rate limiting
+## Rate Limiting
 
-- SlowAPI limiter is configured globally in `rate_limit.py`
-- Applied in routers like:
-  - `/internal/ingest`: `15/minute`
-  - `/scraper/run`: `10/minute`
-  - `/scraper/cleanup`: `10/minute`
+A shared SlowAPI limiter is defined in `rate_limit.py` and attached in `main.py`.
+Router-level limits include:
 
-## Sanity check checklist
-
-1. `uvicorn main:app` starts without env errors
-2. Bot logs show cogs loaded and slash command sync done
-3. `/internal/context/{team}` returns JSON after ingestion
-4. `/find-support` returns ranked candidates, not empty errors
+- `/internal/ingest`: `15/minute`
+- `/scraper/run`: `10/minute`
+- `/scraper/cleanup`: `10/minute`

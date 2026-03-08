@@ -1,109 +1,70 @@
-# 03 - Discord Bot
+# 03. Discord Bot
 
-## Bot architecture
+## Bot Initialization
 
-Main file: `discord_bot/bot.py`
+File: `discord_bot/bot.py`
 
-Bot state kept in memory:
+Key startup steps:
 
-- `bot.team_configs`
-- `bot.team_context_cache`
-- `bot.email_draft_cache`
-- `bot.chat_threads`
-- `bot.synced`
+- Ensure project root is on `sys.path`
+- Initialize intents and custom command tree
+- Load cogs in sequence
+- Perform guild command sync (`GUILD_ID`)
+- Mark bot as ready (`bot.synced = True`)
 
-Command tree uses `BotTree.interaction_check` to reject commands while startup sync is not done.
+## In-Memory State
 
-## Cogs and what each one does
+`bot.py` initializes shared in-memory structures:
 
-### Setup and membership
+- `team_configs`
+- `team_context_cache`
+- `email_draft_cache`
+- `chat_threads`
+- `synced`
 
-- `/setup-team` (`cogs/setup_team.py`)
-  - Registers team in `teams` table
-  - Ingests GitHub and optional website/Notion/Confluence
-  - Embeds chunks and stores derived `team_context`
+These are process-local and reset on restart.
 
-- `/configure-team` (`cogs/configure_team.py`)
-  - `add`: join team and set active
-  - `remove`: leave one team
+## Command Modules
 
-- `/my-team`
-  - Shows user memberships and active team
+### Team and Membership
 
-- `/set-active-team`
-  - Switches active team row in `user_teams`
+- `setup_team.py`: register a team and ingest initial context
+- `configure_team.py`: add/remove user team membership
+- `set-active-team` and `my-team`: active team selection and visibility
 
-### Team analysis and memory edits
+### Context and Analysis
 
-- `/analyze-team` (`cogs/analyze_team.py`)
-  - Loads stored team context
-  - Infers recruiting gaps from blockers/needs
-  - Caches context in bot memory for user/guild pair
+- `analyze_team.py`: load team context and infer recruiting gaps
+- `add_context.py`: ingest additional source URLs into existing team context
+- `remove_from_memory.py`: remove chunks by query and regenerate context
+- `nuke.py`: delete all data for a team after reaction confirmation
 
-- `/add-context` (`cogs/add_context.py`)
-  - Scrapes one new source and inserts new chunks by content hash
-  - Re-runs context extraction
+### Retrieval and Explanations
 
-- `/remove_from_memory` (`cogs/remove_from_memory.py`)
-  - Deletes chunks matching keyword query
-  - Rebuilds team context from remaining chunks
+- `find_support.py`: ranked support/provider discovery
+- `explain_match.py`: detailed rationale for a selected entity
+- `recruit_gap.py`: inferred team gap display
 
-- `/nuke` (`cogs/nuke.py`)
-  - Confirmation reaction required
-  - Deletes chunks, team_context, membership links, team row
+### Conversation and Email
 
-### Retrieval and explanation
+- `chat.py`: thread-based chat with RAG context retrieval
+- `sample_email.py`: generate outreach draft using Gemini
+- `send_email.py`: send cached draft through Gmail SMTP
 
-- `/find-support` (`cogs/find_support.py`)
-  - Calls `retrieval.api.find_support_dict`
-  - Adds contact info from Gemini helper
+### Utilities
 
-- `/find-providers`
-  - Calls `retrieval.api.find_providers_dict`
+- `help_cog.py`: command reference
 
-- `/explain-match` (`cogs/explain_match.py`)
-  - Calls `retrieve_context_pack_dict`
-  - Builds explanation embed + expanded ask text
+## UI Layer
 
-- `/recruit-gap`
-  - Displays inferred support gaps
+- `ui/embeds.py`: structured output rendering
+- `ui/buttons.py`: interaction controls and modal handlers
+- `ui/selects.py`: candidate selection control
 
-### Chat and email
+## Team Context Resolution
 
-- `/chat` (`cogs/chat.py`)
-  - Creates thread
-  - Thread messages trigger RAG retrieval + Gemini reply
-  - Cooldown is 8 sec per user-thread pair
+`discord_bot/team_ctx.py` resolves context in this order:
 
-- `/sample_email` (`cogs/sample_email.py`)
-  - Gemini draft generation from team context
-  - Stores draft in `bot.email_draft_cache[guild_id]`
-
-- `/send_email` (`cogs/send_email.py`)
-  - Sends latest draft through Gmail SMTP (`aiosmtplib`)
-
-### Utility
-
-- `/help` (`cogs/help_cog.py`)
-
-## UI pieces
-
-- `ui/embeds.py`
-  - Candidate ranking embed
-  - Explanation embed
-  - Team context embed
-  - Email draft/sent embeds
-
-- `ui/buttons.py`
-  - Candidate explain buttons
-  - Email edit modal + copy button
-
-## Cache key gotcha
-
-There are mixed key shapes in code paths:
-
-- Some places use key `(guild_id, user_id)` as strings
-- Some places use ints
-
-The helper `team_ctx.get_team_context_for_member` normalizes to string tuple.
-If cache misses feel weird, this is first place to inspect.
+1. Bot cache lookup by `(guild_id, user_id)`
+2. Database lookup via `storage/db.get_team_context_for_user`
+3. Cache population for subsequent requests

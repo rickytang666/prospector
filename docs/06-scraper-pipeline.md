@@ -1,117 +1,69 @@
-# 06 - Scraper Pipeline
+# 06. Scraper Pipeline
 
-## Purpose
+## Objective
 
-This pipeline builds the external candidate database used by retrieval.
+The scraper pipeline builds and maintains the external entity corpus used by retrieval.
 
-High-level chain:
+## Main Orchestration
 
-1. Gather company URLs from many sources
-2. Scrape pages
-3. Enrich into structured entities
-4. Store entities and embeddings in Supabase
+File: `scraper/run.py`
 
-## Main entrypoints
-
-### API mode
-
-Router in `scraper/run.py`:
+### Router Endpoints
 
 - `POST /scraper/run`
 - `POST /scraper/cleanup`
 
-Both require header:
+Both are protected with `X-Scraper-Secret` and `SCRAPER_SECRET`.
 
-- `X-Scraper-Secret: <SCRAPER_SECRET>`
+### CLI Modes
 
-### CLI mode
+- Full run: `python -m scraper.run`
+- Enrich only: `python -m scraper.run --enrich-only`
+- Fast enrich: `python -m scraper.run --fast-enrich`
+- Embeddings only: `python -m scraper.run --embeddings-only`
 
-```bash
-python -m scraper.run
-python -m scraper.run --enrich-only
-python -m scraper.run --fast-enrich
-python -m scraper.run --embeddings-only
-```
+## Stage 1: Gather (`scraper/gather.py`)
 
-## Gather stage
+Sources include:
 
-File: `scraper/gather.py`
+- Waterloo design team discovery and sponsor page extraction
+- Static source list (`sources.json`)
+- Seed entities (`seeds.json`)
+- Wikipedia category ingestion (`wikidata.py`)
 
-Data source tactics:
+Output: `data/companies.json`
 
-- Discover Waterloo student design teams from SDC directory
-- Find sponsor pages per team
-- Extract sponsor companies from sponsor pages
-- Add hardcoded seeds (`seeds.json`)
-- Add Wikipedia category companies (`wikidata.py`)
-- Parse generic source pages from `sources.json`
+## Stage 2: Scrape (`scraper/scrape.py`)
 
-Output file:
+- Fetches canonical pages and selected internal links
+- Uses source-specific handling for Velocity and YC profiles
+- Stores raw extraction payloads in `data/raw_pages/<slug>/pages.json`
 
-- `data/companies.json`
+## Stage 3: Enrich (`scraper/enrich.py`)
 
-## Scrape stage
+- Uses Gemini to extract structured fields:
+  - `summary`, `tags`, `support_types`, contact route hints
+- Adds waterloo affinity evidence from source metadata
+- Writes normalized entities to `data/entities.json`
 
-File: `scraper/scrape.py`
+`fast_enrich` mode generates coarse entities without LLM extraction.
 
-For each company:
+## Stage 4: Store (`scraper/run.py`)
 
-- Pull homepage text with trafilatura
-- Smart crawl extra internal pages using LLM-picked links
-- Special handling:
-  - Velocity profile pages
-  - YC profile pages
-
-Output folder:
-
-- `data/raw_pages/<slug>/pages.json`
-
-## Enrich stage
-
-File: `scraper/enrich.py`
-
-- Gemini prompt extracts:
-  - summary
-  - tags
-  - support_types
-  - contact route hints
-- Adds waterloo affinity evidence from source type
-- Writes `data/entities.json`
-- Supports resume and retry on rate limit
-
-Fast mode (`fast_enrich`) skips LLM and makes rough entities from scraped text only.
-
-## Store stage
-
-`store_to_supabase` in `scraper/run.py` writes:
+Persists entities and related records into Supabase:
 
 - `entities`
 - `affinity_evidence`
 - `contact_routes`
 - `entity_documents`
-- `entity_embeddings` (when embedding succeeds)
+- `entity_embeddings`
 
-## Embeddings-only mode
+Embeddings are generated with model compatibility aligned to retrieval (`text-embedding-3-small`, 1536 dims).
 
-`run_embeddings_only`:
+## Cleanup and Maintenance
 
-- Reads existing `entities` table
-- Skips ids already in `entity_embeddings`
-- Generates missing vectors only
+`run_cleanup` supports deduplication and stale raw-page removal for:
 
-## Cleanup mode
-
-`run_cleanup` dedupes and prunes:
-
-- companies list
-- entities list
-- raw page folders with no matching company slug
-
-## Common pipeline files
-
-- `scraper/sources.json`
-- `scraper/seeds.json`
-- `data/teams.json`
-- `data/team_sponsor_pages.json`
-- `data/companies.json`
-- `data/entities.json`
+- `companies.json`
+- `entities.json`
+- `data/raw_pages/*`

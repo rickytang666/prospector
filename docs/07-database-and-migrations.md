@@ -1,17 +1,15 @@
-# 07 - Database And Migrations
+# 07. Database and Migrations
 
-## DB zones
+## Table Domains
 
-You got two table families.
-
-### Team context family
+### Team Context Domain
 
 - `chunks`
 - `team_context`
 - `teams`
 - `user_teams`
 
-### External entity family
+### External Entity Domain
 
 - `entities`
 - `entity_documents`
@@ -19,76 +17,49 @@ You got two table families.
 - `contact_routes`
 - `entity_embeddings`
 
-## Migration files
+## Migration Files
 
-### `001_create_chunks.sql`
+### `migrations/001_create_chunks.sql`
 
-Creates `chunks` with vector(1536) embedding and ivfflat index.
+Creates chunk storage with pgvector support and relevant indexes.
 
-### `002_create_team_context.sql`
+### `migrations/002_create_team_context.sql`
 
-Creates `team_context` keyed by unique `team_name`.
+Creates one context row per `team_name` with extracted fields.
 
-### `003_add_content_hash.sql`
+### `migrations/003_add_content_hash.sql`
 
-Adds `content_hash` for dedupe and incremental updates.
+Adds `content_hash` for incremental deduplication.
 
-### `004_teams_and_user_teams.sql`
+### `migrations/004_teams_and_user_teams.sql`
 
-Creates team registry and user membership tables.
+Introduces server team registry and user membership mapping.
 
-### `005_user_teams_multiple.sql`
+### `migrations/005_user_teams_multiple.sql`
 
-Allows multiple team memberships per user and adds `is_active` field.
+Extends membership model to allow multiple teams per user and active-team selection.
 
-### `003_match_entities_rpc.sql`
+### `migrations/002_entity_embeddings_1536.sql`
 
-Creates RPC `match_entities_for_team` for vector similarity retrieval.
+Aligns entity embedding vector dimension to 1536.
 
-### `002_entity_embeddings_1536.sql`
+### `migrations/003_match_entities_rpc.sql`
 
-Rebuilds embedding column to 1536 if old dimension mismatches.
+Defines semantic retrieval RPC `match_entities_for_team`.
 
-## Team context row shape
-
-Stored by extractor/upsert code:
-
-- `team_name`
-- `tech_stack[]`
-- `focus_areas[]`
-- `blockers[]`
-- `needs[]`
-- `raw_llm_output`
-
-`storage/db.py` maps this into bot runtime shape, including:
-
-- `active_blockers`
-- `inferred_support_needs`
-- `context_summary`
-- plus repo fields from `teams`
-
-## Membership semantics
-
-`user_teams` logic in `storage/db.py`:
-
-- user can belong to many teams in guild
-- one row should be active per user-guild
-- `set_active_team` flips booleans
-- `get_user_team` picks active first, fallback first row
-
-## Suggested migration order
+## Recommended Migration Sequence
 
 1. `001_create_chunks.sql`
 2. `002_create_team_context.sql`
 3. `003_add_content_hash.sql`
 4. `004_teams_and_user_teams.sql`
 5. `005_user_teams_multiple.sql`
-6. scraper schema objects (`scraper/schema.sql`) if missing
-7. `002_entity_embeddings_1536.sql` if needed
+6. `scraper/schema.sql` (if entity tables are not yet provisioned)
+7. `002_entity_embeddings_1536.sql` (if dimension mismatch exists)
 8. `003_match_entities_rpc.sql`
 
-## RPC compatibility notes
+## Operational Notes
 
-- Embedding model in code uses `text-embedding-3-small`
-- Dimension must be 1536 in both chunks and entity embeddings
-- If RPC returns odd row shapes, normalization in `retrieval/db_retrieval.py` tries to recover
+- Retrieval code expects 1536-dimensional embeddings
+- RPC output may vary in shape; `retrieval/db_retrieval.py` handles normalization
+- `storage/db.py` performs asynchronous Supabase operations through thread offloading
