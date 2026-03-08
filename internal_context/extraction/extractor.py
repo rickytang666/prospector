@@ -1,4 +1,5 @@
 import json
+import random
 from openai import OpenAI
 from config import OPENROUTER_API_KEY
 from internal_context.models import Chunk
@@ -9,7 +10,7 @@ client = OpenAI(
 )
 
 MODEL = "google/gemini-2.5-flash-lite"
-MAX_CHUNKS = 20
+MAX_CHUNKS = 40
 MAX_WORDS_PER_CHUNK = 200
 
 
@@ -19,9 +20,12 @@ def truncate(text: str, max_words: int) -> str:
 
 
 def extract_team_context(team_name: str, chunks: list[Chunk]) -> dict:
-    # prioritize readme/docs
+    # prioritize readme/docs over other sources
     priority = [c for c in chunks if c.source_type in ("github_readme", "website", "notion")]
     rest = [c for c in chunks if c.source_type not in ("github_readme", "website", "notion")]
+
+    # randomly sample from rest so we don't just get the first N pages
+    random.shuffle(rest)
     selected = (priority + rest)[:MAX_CHUNKS]
 
     context_blob = "\n\n---\n\n".join(truncate(c.content, MAX_WORDS_PER_CHUNK) for c in selected)
@@ -34,7 +38,7 @@ Here is their content (from github, website, docs):
 
 Return a JSON object with exactly these fields:
 {{
-  "tech_stack": ["list of specific tools, languages, frameworks, hardware they use"],
+  "tech_stack": ["list of specific software tools, programming languages, and frameworks they use — do NOT include generic hardware like CPUs or GPUs"],
   "focus_areas": ["list of subsystems or problem areas they work on"],
   "blockers": ["list of things they are actively stuck on or struggling with"],
   "needs": ["list of types of support, tooling, or sponsors they would benefit from"]
