@@ -569,6 +569,9 @@ if __name__ == "__main__":
         gather_from_teams()
     elif cmd == "seeds":
         gather_seeds()
+    elif cmd == "wikidata":
+        from scraper.wikidata import gather_wikidata
+        gather_wikidata(out_file)
     elif cmd == "reset_team" and len(sys.argv) > 2:
         # remove a team
         team_name = " ".join(sys.argv[2:]).lower()
