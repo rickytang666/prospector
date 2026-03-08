@@ -73,13 +73,6 @@ async def delete_team(guild_id: str, team_name: str) -> None:
 
 
 async def get_chunks(team_name: str) -> list[dict]:
-<<<<<<< HEAD
-    def _run():
-        c = _get_client()
-        res = c.table("chunks").select("id, team_name, source_type, source_url, content, created_at").eq("team_name", team_name).execute()
-        return res.data
-    return await asyncio.to_thread(_run)
-=======
     db = get_client()
     res = db.table("chunks").select("id, team_name, source_type, source_url, content, created_at").eq("team_name", team_name).execute()
     return res.data or []
@@ -166,4 +159,3 @@ async def find_chunk_ids_by_query(team_name: str, query: str, limit: int = 20) -
     pattern = f"%{_escape_like(query)}%"
     res = db.table("chunks").select("id").eq("team_name", team_name).ilike("content", pattern).limit(limit).execute()
     return [r["id"] for r in (res.data or []) if r.get("id")]
->>>>>>> 37f84260dcddf53ec65b52a28d5cd3165dc3dc5c
