@@ -170,6 +170,74 @@ def build_entity(company, scraped_text, client):
 def slug(name):
     return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
 
+def _quick_summary(text: str, max_chars: int = 300) -> str:
+    """grab first couple sentences from scraped text as a summary."""
+    text = text.strip()
+    # try to cut at a sentence boundary
+    for end in [". ", "! ", "? "]:
+        idx = text.find(end, 100)
+        if 100 < idx < max_chars:
+            return text[:idx + 1].strip()
+    return text[:max_chars].strip()
+
+
+def fast_enrich(limit=None):
+    """no llm — just build entities from scraped text directly. runs in seconds."""
+    with open(companies_file) as f:
+        companies = json.load(f)
+    if limit:
+        companies = companies[:limit]
+
+    # resume
+    if entities_file.exists():
+        with open(entities_file) as f:
+            entities = json.load(f)
+        if not isinstance(entities, list):
+            entities = []
+    else:
+        entities = []
+    start_index = len(entities)
+    if start_index > 0:
+        print(f"resuming from {start_index + 1}/{len(companies)}")
+
+    for i in range(start_index, len(companies)):
+        company = companies[i]
+        name = company["name"]
+        s = slug(name)
+        pages_file = raw_dir / s / "pages.json"
+
+        scraped_text = ""
+        if pages_file.exists():
+            with open(pages_file) as f:
+                pages = json.load(f)
+            scraped_text = "\n\n".join(p["raw_text"] for p in pages.values() if p.get("raw_text"))
+
+        summary = _quick_summary(scraped_text) if scraped_text else None
+        print(f"[{i+1}/{len(companies)}] {name} {'(scraped)' if summary else '(no content)'}")
+
+        entities.append({
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "entity_type": "provider",
+            "canonical_url": company.get("url"),
+            "summary": summary,
+            "source_urls": [company.get("source_url", "")],
+            "tags": [],
+            "support_types": [],
+            "waterloo_affinity_evidence": get_affinity(company),
+            "contact_routes": [],
+        })
+
+        # checkpoint every 50
+        if i % 50 == 0:
+            with open(entities_file, "w") as f:
+                json.dump(entities, f, indent=2)
+
+    with open(entities_file, "w") as f:
+        json.dump(entities, f, indent=2)
+    print(f"\ndone. {len(entities)} entities saved to {entities_file}")
+
+
 #enrich to entities.json
 def enrich(limit=None):
     with open(companies_file) as f:
