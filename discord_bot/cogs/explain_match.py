@@ -1,7 +1,8 @@
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
-from testing_info import MOCK_EXPLANATIONS
+from retrieval.api import retrieve_context_pack_dict
 from ui.embeds import explanation_embed
 
 
@@ -22,14 +23,26 @@ class ExplainMatch(commands.Cog):
 
         await interaction.response.defer()
 
-        explanation = MOCK_EXPLANATIONS.get(entity_id.lower())
+        pack = await asyncio.to_thread(
+            retrieve_context_pack_dict,
+            team_context=team_context,
+            query=entity_id,
+            k_entities=1,
+        )
+        matches = pack.get("entity_matches", [])
 
-        if not explanation:
-            valid = ", ".join(MOCK_EXPLANATIONS.keys())
-            await interaction.followup.send(
-                f"No explanation found for **{entity_id}**. Valid options: `{valid}`"
-            )
+        if not matches:
+            await interaction.followup.send(f"No match found for **{entity_id}**.")
             return
+
+        entity = matches[0]
+        support_types = entity.get("support_types") or []
+        explanation = {
+            "entity_name": entity.get("name", entity_id),
+            "why_it_helps": entity.get("matched_reasons") or ["No reasons available."],
+            "why_they_may_care": entity.get("evidence_snippets") or ["No evidence available."],
+            "recommended_ask": support_types[0] if support_types else "Reach out to explore collaboration.",
+        }
 
         embed = explanation_embed(explanation, team_name=team_context["team_name"])
         await interaction.followup.send(embed=embed)

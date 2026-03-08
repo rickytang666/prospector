@@ -1,7 +1,8 @@
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
-from testing_info import MOCK_CANDIDATES
+from retrieval.api import rank_candidates_dict
 from ui.embeds import candidates_embed
 from ui.buttons import CandidateView
 
@@ -23,8 +24,12 @@ class FindSupport(commands.Cog):
 
         await interaction.response.defer()
 
-        embed = candidates_embed(MOCK_CANDIDATES, query)
-        view = CandidateView(MOCK_CANDIDATES)
+        result = await asyncio.to_thread(rank_candidates_dict, team_context=team_context, query=query, k=5)
+        candidates = result["candidates"]
+        retrieval_metadata = result.get("retrieval_metadata") or {}
+
+        embed = candidates_embed(candidates, query, retrieval_metadata)
+        view = CandidateView(candidates)
 
         await interaction.followup.send(embed=embed, view=view)
 

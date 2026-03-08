@@ -27,10 +27,15 @@ def fetch_page(url):
 def extract_with_llm(html, source):
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-    prompt = f""" Extract all company or organization names and their website URLs from this HTML.
+    page_owner = (source.get("team") or "").strip()
+    owner_instruction = ""
+    if page_owner:
+        owner_instruction = f"\nThis page is from \"{page_owner}\". Do NOT include \"{page_owner}\" or the page owner itself in the list—only list external sponsors or partners."
+
+    prompt = f"""Extract all company or organization names and their website URLs from this HTML.
 Return ONLY a JSON array like: [{{"name": "...", "url": "..."}}]
 If you can't find a direct URL for a company, try to infer it (e.g. "Intel" -> "https://intel.com").
-Only include real companies/orgs, skip navigation links and generic stuff.
+Only include real companies/orgs that are sponsors or partners listed on the page. Skip navigation links and generic stuff.{owner_instruction}
 
 HTML:
 {html[:50000]}"""

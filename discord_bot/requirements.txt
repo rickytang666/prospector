@@ -4,3 +4,5 @@ aiosqlite
 discord.py==2.6.4
 google-genai
 python-dotenv
+supabase
+openai
