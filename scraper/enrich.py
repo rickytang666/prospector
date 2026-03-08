@@ -39,12 +39,21 @@ def get_affinity(company):
     evidence = []
 
     if src_type == "design_team_sponsor":
-        team = company.get("team", "a Waterloo design team")
-        evidence.append({
-            "type": "team_sponsor",
-            "text": f"Listed as sponsor for {team}",
-            "source_url": company.get("source_url", ""),
-        })
+        source_teams = company.get("source_teams") or []
+        if source_teams:
+            for st in source_teams:
+                evidence.append({
+                    "type": "team_sponsor",
+                    "text": f"Listed as sponsor for {st['team']}",
+                    "source_url": st.get("source_url", ""),
+                })
+        else:
+            team = company.get("team", "a Waterloo design team")
+            evidence.append({
+                "type": "team_sponsor",
+                "text": f"Listed as sponsor for {team}",
+                "source_url": company.get("source_url", ""),
+            })
     elif src_type == "velocity_startup":
         evidence.append({
             "type": "startup_incubator",

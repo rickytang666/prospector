@@ -380,8 +380,20 @@ def dedupe(companies):
     seen = {}
     for c in companies:
         key = c["name"].lower().strip()
+        if not key:
+            continue
         if key not in seen:
-            seen[key] = c
+            entry = dict(c)
+            if c.get("source_type") == "design_team_sponsor" and c.get("team"):
+                entry["source_teams"] = [{"team": c["team"], "source_url": c.get("source_url", "")}]
+            seen[key] = entry
+        else:
+            # merge
+            if c.get("source_type") == "design_team_sponsor" and c.get("team"):
+                existing = seen[key].setdefault("source_teams", [])
+                known = {t["team"] for t in existing}
+                if c["team"] not in known:
+                    existing.append({"team": c["team"], "source_url": c.get("source_url", "")})
     return list(seen.values())
 
 
