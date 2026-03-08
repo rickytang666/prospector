@@ -84,14 +84,48 @@ def _score01(x: Any):
         return 1.0
     return f
 
+def _norm_entity_type(v: Any):
+    s = str(v or "").strip().lower()
+    if not s:
+        return "unknown"
+    m = {
+        "company": "company",
+        "startup": "company",
+        "corporation": "company",
+        "corp": "company",
+        "org": "company",
+        "organization": "company",
+        "industry_partner": "company",
+        "sponsor": "company",
+        "provider": "provider",
+        "vendor": "provider",
+        "tool": "provider",
+        "platform": "provider",
+        "professor": "professor",
+        "faculty": "professor",
+        "lab": "lab",
+        "research_lab": "lab",
+    }
+    if s in m:
+        return m[s]
+    if "prof" in s:
+        return "professor"
+    if "lab" in s:
+        return "lab"
+    if "company" in s or "startup" in s or "corp" in s or "org" in s or "sponsor" in s:
+        return "company"
+    if "provider" in s or "vendor" in s or "tool" in s or "platform" in s:
+        return "provider"
+    return s
+
 
 def _row_to_entity(row: dict[str, Any]):
     row = _parse_json_maybe(row)
     if not isinstance(row, dict):
         return None
-    eid = str(row.get("entity_id") or row.get("id") or "")
-    nm = str(row.get("name") or "")
-    et = str(row.get("entity_type") or row.get("type") or "unknown")
+    eid = str(row.get("entity_id") or row.get("entityId") or row.get("id") or "")
+    nm = str(row.get("name") or row.get("entity_name") or row.get("entityName") or "")
+    et = _norm_entity_type(row.get("entity_type") or row.get("entityType") or row.get("type"))
     sm = str(row.get("summary") or row.get("description") or row.get("entity_summary") or "")
     tg = _to_str_list(row.get("tags") or row.get("entity_tags"))
     st = _to_str_list(row.get("support_types") or row.get("supports") or row.get("support"))

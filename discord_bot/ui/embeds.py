@@ -90,8 +90,8 @@ def _score_breakdown_line(c):
     return f"sem {sem:.2f} • tag {tag:.2f} • support {sup:.2f} • uw {uw:.2f}"
 
 
-def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Support Matches"):
-    top = candidates[:5]
+def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Support Matches", max_items=5):
+    top = candidates[:max_items]
     meta = retrieval_metadata or {}
     source = meta.get("candidate_source", "unknown")
     db_status = meta.get("db_status", "n/a")

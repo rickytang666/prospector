@@ -12,17 +12,17 @@ class FindSupport(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def _run_and_send(self, interaction: discord.Interaction, query: str, fn, title: str, **kwargs):
+    async def _run_and_send(self, interaction: discord.Interaction, query: str, fn, title: str, k: int = 5, max_items: int = 5, **kwargs):
         guild_id = interaction.guild_id
         team_context = interaction.client.team_context_cache.get(guild_id)
         if not team_context:
             await interaction.response.send_message("Run `/analyze-team` first.")
             return
         await interaction.response.defer()
-        result = await asyncio.to_thread(fn, team_context=team_context, query=query, k=5, **kwargs)
+        result = await asyncio.to_thread(fn, team_context=team_context, query=query, k=k, **kwargs)
         candidates = result["candidates"]
         retrieval_metadata = result.get("retrieval_metadata") or {}
-        embed = candidates_embed(candidates, query, retrieval_metadata, title=title)
+        embed = candidates_embed(candidates, query, retrieval_metadata, title=title, max_items=max_items)
         view = CandidateView(candidates)
         await interaction.followup.send(embed=embed, view=view)
 
@@ -51,6 +51,8 @@ class FindSupport(commands.Cog):
             query,
             find_sponsors_dict,
             title="Top Sponsor Matches",
+            k=200,
+            max_items=25,
             message=message,
         )
 

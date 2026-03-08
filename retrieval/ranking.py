@@ -191,9 +191,14 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
     kk = int(k) if isinstance(k, int) else DEFAULT_K
     if kk < 1:
         kk = 1
-    if kk > 25:
-        kk = 25
+    max_k = 25
+    if (profile or "").strip().lower() == "sponsors":
+        max_k = 200
+    if kk > max_k:
+        kk = max_k
     kk2 = max(1, kk * 2)
+    if (profile or "").strip().lower() == "sponsors":
+        kk2 = max(kk2, kk * 6)
 
     raw=[]
     weights = _profile_weights(profile)
