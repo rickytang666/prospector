@@ -24,14 +24,14 @@ bot.email_draft_cache = {}
 bot.chat_threads = set()
 
 COGS = [
-    "cogs.setup_team",
-    "cogs.analyze_team",
-    "cogs.find_support",
-    "cogs.explain_match",
-    "cogs.recruit_gap",
-    "cogs.chat",
-    "cogs.sample_email",
-    "cogs.send_email",
+    "discord_bot.cogs.setup_team",
+    "discord_bot.cogs.analyze_team",
+    "discord_bot.cogs.find_support",
+    "discord_bot.cogs.explain_match",
+    "discord_bot.cogs.recruit_gap",
+    "discord_bot.cogs.chat",
+    "discord_bot.cogs.sample_email",
+    "discord_bot.cogs.send_email",
 ]
 
 async def load_cogs():
