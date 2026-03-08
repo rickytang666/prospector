@@ -52,14 +52,7 @@ class AnalyzeTeam(commands.Cog):
             return
 
         await interaction.response.defer()
-<<<<<<< HEAD
-
-        team_name = config["team_name"]
-        stored = await db.get_team_context(team_name)
-
-=======
         stored = await db.get_team_context(ctx["team_name"])
->>>>>>> 37f84260dcddf53ec65b52a28d5cd3165dc3dc5c
         if not stored:
             await interaction.followup.send(
                 f"No ingested context for **{ctx['team_name']}**. Run `/setup-team` for that team first.",
@@ -74,14 +67,10 @@ class AnalyzeTeam(commands.Cog):
             **ctx,
             "recruiting_gaps": recruiting_gaps,
         }
-<<<<<<< HEAD
-        interaction.client.team_context_cache[guild_id] = team_context
-=======
         key = (guild_id, user_id)
         if not hasattr(interaction.client, "team_context_cache"):
             interaction.client.team_context_cache = {}
         interaction.client.team_context_cache[key] = team_context
->>>>>>> 37f84260dcddf53ec65b52a28d5cd3165dc3dc5c
 
         embed = team_context_embed(team_context)
         await interaction.followup.send(embed=embed)
