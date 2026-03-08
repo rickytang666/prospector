@@ -1,5 +1,5 @@
 import discord
-from ui.embeds import explanation_embed
+from discord_bot.ui.embeds import explanation_embed
 from testing_info import MOCK_EXPLANATIONS
 
 

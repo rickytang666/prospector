@@ -4,8 +4,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import GEMINI_API_KEY
-from ui.buttons import EmailView
-from ui.embeds import email_draft_embed
+from discord_bot.ui.buttons import EmailView
+from discord_bot.ui.embeds import email_draft_embed
 
 _client = genai.Client(api_key=GEMINI_API_KEY)
 

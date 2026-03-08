@@ -5,6 +5,9 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID", "0"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GMAIL_USER = os.getenv("GMAIL_USER")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
