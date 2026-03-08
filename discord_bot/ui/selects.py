@@ -1,6 +1,5 @@
 import discord
 from discord_bot.ui.embeds import explanation_embed
-from testing_info import MOCK_EXPLANATIONS
 
 
 class CandidateSelect(discord.ui.Select):
@@ -24,20 +23,10 @@ class CandidateSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         entity_id = self.values[0]
-        explanation = MOCK_EXPLANATIONS.get(entity_id)
-
-        if not explanation:
-            await interaction.response.send_message(
-                f"No explanation available for **{entity_id}**.",
-                ephemeral=True
-            )
-            return
-
-        key = (str(interaction.guild_id), str(interaction.user.id))
-        team_context = getattr(interaction.client, "team_context_cache", {}).get(key)
-        team_name = team_context["team_name"] if team_context else None
-        embed = explanation_embed(explanation, team_name=team_name)
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(
+            f"Use `/explain-match {entity_id}` for a full explanation.",
+            ephemeral=True
+        )
 
 
 class CandidateSelectView(discord.ui.View):

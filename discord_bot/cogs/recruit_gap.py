@@ -15,14 +15,14 @@ class RecruitGap(commands.Cog):
 
         guild_id = interaction.guild_id
         user_id = interaction.user.id
+        await interaction.response.defer()
+
         from discord_bot.team_ctx import get_team_context_for_member
         team_context = await get_team_context_for_member(interaction.client, guild_id, user_id)
 
         if not team_context:
-            await interaction.response.send_message("Run `/configure-team add` first (use `/my-team` to see teams).")
+            await interaction.followup.send("Run `/configure-team add` first (use `/my-team` to see teams).", ephemeral=True)
             return
-
-        await interaction.response.defer()
 
         gaps = team_context.get("recruiting_gaps", [])
         if not gaps:

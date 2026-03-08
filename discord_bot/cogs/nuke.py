@@ -21,9 +21,11 @@ class Nuke(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
+        await interaction.response.defer()
+
         team_name = await db.get_user_team(guild_id, user_id)
         if not team_name:
-            await interaction.response.send_message("You are not assigned to a team. Use `/configure-team add` first.", ephemeral=True)
+            await interaction.followup.send("You are not assigned to a team. Use `/configure-team add` first.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -32,9 +34,7 @@ class Nuke(commands.Cog):
             color=discord.Color.red(),
         )
         embed.add_field(name="Confirm", value=f"React with {CONFIRM_EMOJI} within {TIMEOUT_SEC} seconds to confirm.", inline=False)
-        await interaction.response.send_message(embed=embed)
-
-        message = await interaction.original_response()
+        message = await interaction.followup.send(embed=embed)
         try:
             await message.add_reaction(CONFIRM_EMOJI)
         except Exception:

@@ -3,32 +3,19 @@ import hashlib
 import discord
 from discord.ext import commands
 from discord import app_commands
-from internal_context.ingestion.github import scrape_github
-from internal_context.ingestion.website import scrape_website
-from internal_context.ingestion.notion import scrape_notion
-from internal_context.ingestion.confluence import scrape_confluence
-from internal_context.embedding.embedder import embed_chunks
-from internal_context.extraction.extractor import extract_team_context
 from storage import db
 
 
 async def repo_autocomplete(interaction: discord.Interaction, current: str):
-    options = [
-        "https://github.com/UWOrbital",
-        "https://github.com/WATonomous",
-    ]
     return [
-        app_commands.Choice(name=url, value=url)
-        for url in options if current.lower() in url.lower()
-    ]
+        app_commands.Choice(name=current or "https://github.com/your-org", value=current or "https://github.com/your-org")
+    ] if current else []
 
 
 async def team_name_autocomplete(interaction: discord.Interaction, current: str):
-    options = ["UW Orbital", "WATonomous"]
     return [
-        app_commands.Choice(name=name, value=name)
-        for name in options if current.lower() in name.lower()
-    ]
+        app_commands.Choice(name=current, value=current)
+    ] if current else []
 
 
 class SetupTeam(commands.Cog):
@@ -58,21 +45,29 @@ class SetupTeam(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
-        existing = await db.list_teams(guild_id)
-        if any((t.get("team_name") or "").strip() == team_name.strip() for t in existing):
-            await interaction.response.send_message(
-                f"Team **{team_name}** is already registered. Use `/add-context` to add more sources or `/nuke` to reset it.",
-                ephemeral=True,
-            )
-            return
-
         await interaction.response.defer()
+
+        existing = await db.list_teams(guild_id)
+        print(f"[setup_team] existing teams for guild {guild_id}: {[t.get('team_name') for t in existing]}")
+        exists = any((t.get("team_name") or "").strip() == team_name.strip() for t in existing)
+
         await db.upsert_team(guild_id, team_name, repo)
-        await interaction.followup.send(
-            f"Team **{team_name}** registered. Ingesting repository — this may take a minute..."
-        )
+        if exists:
+            await interaction.followup.send(
+                f"Team **{team_name}** is already registered. Re-indexing sources now — this may take a minute..."
+            )
+        else:
+            await interaction.followup.send(
+                f"Team **{team_name}** registered. Ingesting repository — this may take a minute..."
+            )
 
         try:
+            from internal_context.ingestion.github import scrape_github
+            from internal_context.ingestion.website import scrape_website
+            from internal_context.ingestion.notion import scrape_notion
+            from internal_context.ingestion.confluence import scrape_confluence
+            from internal_context.embedding.embedder import embed_chunks
+            from internal_context.extraction.extractor import extract_team_context
             chunks = []
 
             if website_url:

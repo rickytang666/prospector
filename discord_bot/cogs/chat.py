@@ -106,10 +106,12 @@ class Chat(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         from discord_bot.team_ctx import get_team_context_for_member
         team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Run `/configure-team add` to join a team first. Use `/my-team` to see options. Context loads from the database when you chat.",
                 ephemeral=True,
             )
@@ -117,13 +119,11 @@ class Chat(commands.Cog):
 
         channel = interaction.channel
         if not isinstance(channel, discord.TextChannel):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Run `/chat` in a text channel (not inside a thread).",
                 ephemeral=True,
             )
             return
-
-        await interaction.response.defer(ephemeral=True)
 
         try:
             thread = await channel.create_thread(

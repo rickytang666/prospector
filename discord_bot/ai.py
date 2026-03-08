@@ -2,7 +2,13 @@ import json
 from google import genai
 from discord_bot.config import GEMINI_API_KEY
 
-_client = genai.Client(api_key=GEMINI_API_KEY)
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=GEMINI_API_KEY)
+    return _client
 
 
 async def get_contact_infos(candidates: list[dict]) -> list[dict]:
@@ -31,7 +37,7 @@ Return a JSON array with exactly {len(names)} objects in the same order:
 
 Return only valid JSON, no explanation."""
 
-    response = await _client.aio.models.generate_content(
+    response = await _get_client().aio.models.generate_content(
         model="gemini-2.0-flash", contents=prompt
     )
 
@@ -63,7 +69,7 @@ Requirements:
 - Return only the 3 sentences, no labels or extra text"""
 
     try:
-        response = await _client.aio.models.generate_content(
+        response = await _get_client().aio.models.generate_content(
             model="gemini-2.0-flash", contents=prompt
         )
         return response.text.strip()

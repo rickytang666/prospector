@@ -49,8 +49,11 @@ async def insert_chunks(chunks: list) -> None:
 async def upsert_team_context(data: dict) -> None:
     def _run():
         c = _get_client()
-        c.table("team_context").delete().eq("team_name", data["team_name"]).execute()
-        c.table("team_context").insert(data).execute()
+        existing = c.table("team_context").select("team_name").eq("team_name", data["team_name"]).limit(1).execute()
+        if existing.data:
+            c.table("team_context").update(data).eq("team_name", data["team_name"]).execute()
+        else:
+            c.table("team_context").insert(data).execute()
     await asyncio.to_thread(_run)
 
 

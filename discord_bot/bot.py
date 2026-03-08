@@ -21,6 +21,10 @@ if not GUILD_ID:
 
 class BotTree(app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        from datetime import datetime, timezone
+        age = (datetime.now(timezone.utc) - interaction.created_at).total_seconds()
+        cmd = interaction.command.name if interaction.command else "?"
+        print(f"[interaction] /{cmd} age={age:.2f}s")
         if not getattr(interaction.client, "synced", False):
             try:
                 await interaction.response.send_message("Bot is still starting up, please try again in a few seconds.", ephemeral=True)
@@ -67,6 +71,19 @@ async def load_cogs():
 
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: Exception):
+    if isinstance(error, app_commands.CommandInvokeError) and isinstance(getattr(error, "original", None), discord.NotFound):
+        original = error.original
+        if getattr(original, "code", None) == 10062:
+            print(f"[cmd timeout] /{interaction.command.name if interaction.command else '?'} by {interaction.user}: interaction expired before ack")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("That command timed out before Discord acknowledged it. Please run it again.", ephemeral=True)
+                elif interaction.channel:
+                    await interaction.channel.send(f"{interaction.user.mention} that command timed out before Discord acknowledged it. Please run it again.")
+            except Exception:
+                pass
+            return
+
     print(f"[cmd error] /{interaction.command.name if interaction.command else '?'} by {interaction.user}: {error}")
     traceback.print_exc()
     try:
@@ -79,16 +96,23 @@ async def on_app_command_error(interaction: discord.Interaction, error: Exceptio
 
 @bot.event
 async def on_ready():
+    print(f"[on_ready] connected as {bot.user}")
+    if bot.synced:
+        print(f"[on_ready] reconnected, skipping sync")
+        return
+    print(f"[on_ready] syncing commands...")
     guild = discord.Object(id=GUILD_ID)
     try:
         bot.tree.copy_global_to(guild=guild)
-        await bot.tree.sync(guild=guild)
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
+        await asyncio.wait_for(bot.tree.sync(guild=guild), timeout=20)
+        print(f"[on_ready] guild sync complete")
+    except asyncio.TimeoutError:
+        print("[on_ready] sync timed out after 20s; continuing startup with existing registered commands")
     except Exception as e:
-        print(f"[on_ready] sync error (commands may already be synced): {e}")
+        print(f"[on_ready] sync error: {e}")
+        traceback.print_exc()
     bot.synced = True
-    print(f"Logged in as {bot.user}")
+    print(f"[on_ready] ready")
 
 async def start_bot():
     async with bot:

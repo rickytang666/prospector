@@ -4,8 +4,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from storage import db
-from internal_context.extraction.extractor import extract_team_context
-from internal_context.models import Chunk
 
 
 class RemoveFromMemory(commands.Cog):
@@ -21,17 +19,17 @@ class RemoveFromMemory(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         team_name = await db.get_user_team(guild_id, user_id)
         if not team_name:
-            await interaction.response.send_message("Run `/configure-team add` first to have a team.", ephemeral=True)
+            await interaction.followup.send("Run `/configure-team add` first to have a team.", ephemeral=True)
             return
 
         query = (query or "").strip()
         if not query:
-            await interaction.response.send_message("Provide a `query` string to search for.", ephemeral=True)
+            await interaction.followup.send("Provide a `query` string to search for.", ephemeral=True)
             return
-
-        await interaction.response.defer(ephemeral=True)
         ids = await db.find_chunk_ids_by_query(team_name, query, limit=50)
         if not ids:
             await interaction.followup.send(f"No chunks found containing \"{query[:50]}...\" for **{team_name}**.", ephemeral=True)
@@ -40,6 +38,8 @@ class RemoveFromMemory(commands.Cog):
         await db.delete_chunks_by_ids(ids)
         all_rows = await db.get_chunks(team_name)
         if all_rows:
+            from internal_context.extraction.extractor import extract_team_context
+            from internal_context.models import Chunk
             all_chunks = [Chunk(team_name=r["team_name"], source_type=r["source_type"], source_url=r.get("source_url"), content=r["content"]) for r in all_rows]
             ctx = await asyncio.to_thread(extract_team_context, team_name, all_chunks)
             await db.upsert_team_context(ctx)

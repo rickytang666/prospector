@@ -5,12 +5,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from storage import db
-from internal_context.ingestion.notion import scrape_notion
-from internal_context.ingestion.confluence import scrape_confluence
-from internal_context.ingestion.website import scrape_website
-from internal_context.embedding.embedder import embed_chunks
-from internal_context.extraction.extractor import extract_team_context
-from internal_context.models import Chunk
 
 
 class AddContext(commands.Cog):
@@ -39,18 +33,24 @@ class AddContext(commands.Cog):
             await interaction.response.send_message("Use this in a server and provide a URL.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         team_name = await db.get_user_team(guild_id, user_id)
         if not team_name:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Run `/configure-team add` first to join a team.",
                 ephemeral=True,
             )
             return
-
-        await interaction.response.defer(ephemeral=True)
         url = url.strip()
 
         try:
+            from internal_context.ingestion.notion import scrape_notion
+            from internal_context.ingestion.confluence import scrape_confluence
+            from internal_context.ingestion.website import scrape_website
+            from internal_context.embedding.embedder import embed_chunks
+            from internal_context.extraction.extractor import extract_team_context
+            from internal_context.models import Chunk
             if source_type == "notion":
                 chunks = await asyncio.to_thread(scrape_notion, url, team_name)
             elif source_type == "confluence":
@@ -81,6 +81,10 @@ class AddContext(commands.Cog):
         if all_chunks:
             ctx = await asyncio.to_thread(extract_team_context, team_name, all_chunks)
             await db.upsert_team_context(ctx)
+            cache = getattr(self.bot, "team_context_cache", {})
+            for key in list(cache.keys()):
+                if cache[key].get("team_name") == team_name:
+                    del cache[key]
 
         await interaction.followup.send(
             f"Added **{len(new_chunks)}** new chunk(s) to **{team_name}**. Use `/analyze-team` to refresh the summary.",

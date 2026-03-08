@@ -43,15 +43,16 @@ class AnalyzeTeam(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
+        await interaction.response.defer()
+
         ctx = await db.get_team_context_for_user(guild_id, user_id)
         if not ctx:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Run `/configure-team add` to join a team first. Use `/my-team` to see available teams (admins register them with `/setup-team`).",
                 ephemeral=True,
             )
             return
 
-        await interaction.response.defer()
         stored = await db.get_team_context(ctx["team_name"])
         if not stored:
             await interaction.followup.send(

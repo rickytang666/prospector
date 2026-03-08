@@ -7,7 +7,13 @@ from discord_bot.config import GEMINI_API_KEY
 from discord_bot.ui.buttons import EmailView
 from discord_bot.ui.embeds import email_draft_embed
 
-_client = genai.Client(api_key=GEMINI_API_KEY)
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=GEMINI_API_KEY)
+    return _client
 
 
 async def _generate_email(team_context: dict, organization: str, email_type: str, subject_line: str) -> str:
@@ -28,7 +34,7 @@ Requirements:
 - No placeholders — write a complete, sendable draft
 - {"Request sponsorship or resources" if email_type == "sponsorship" else "Propose collaboration or outreach"}
 """
-    response = await _client.aio.models.generate_content(
+    response = await _get_client().aio.models.generate_content(
         model="gemini-2.0-flash", contents=prompt
     )
     return response.text
@@ -55,16 +61,16 @@ class SampleEmail(commands.Cog):
         type: app_commands.Choice[str],
         subject_line: str,
     ):
+        await interaction.response.defer()
+
         from discord_bot.team_ctx import get_team_context_for_member
         team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Run `/configure-team add` first (use `/my-team` to see teams).",
                 ephemeral=True,
             )
             return
-
-        await interaction.response.defer()
 
         draft = await _generate_email(team_context, organization, type.value, subject_line)
         self.bot.email_draft_cache[interaction.guild_id] = draft

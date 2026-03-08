@@ -16,12 +16,23 @@ class FindSupport(commands.Cog):
     async def _run_and_send(self, interaction: discord.Interaction, query: str, fn, title: str, k: int = 5, max_items: int = 5, **kwargs):
         guild_id = interaction.guild_id
         user_id = interaction.user.id
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            # Interaction token expired before we could acknowledge it.
+            ch = interaction.channel
+            if ch is not None:
+                try:
+                    await ch.send("That command timed out before Discord acknowledged it. Please run `/find-support` again.")
+                except Exception:
+                    pass
+            return
+
         from discord_bot.team_ctx import get_team_context_for_member
         team_context = await get_team_context_for_member(interaction.client, guild_id, user_id)
         if not team_context:
-            await interaction.response.send_message("Run `/configure-team add` first (use `/my-team` to see teams). Context loads from the database.")
+            await interaction.followup.send("Run `/configure-team add` first (use `/my-team` to see teams).", ephemeral=True)
             return
-        await interaction.response.defer()
         result = await asyncio.to_thread(fn, team_context=team_context, query=query, k=k, **kwargs)
         candidates = result["candidates"]
         retrieval_metadata = result.get("retrieval_metadata") or {}
