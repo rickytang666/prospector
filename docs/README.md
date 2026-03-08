@@ -25,3 +25,7 @@ The documentation covers:
 - Scraper data pipeline and storage flow
 - Database schema and migration order
 - Testing, troubleshooting, and operational guidance
+
+## Architecture
+
+![arch](../arch.png)
