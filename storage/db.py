@@ -11,12 +11,21 @@ def get_client() -> Client:
     return _client
 
 
-async def delete_chunks(team_name: str) -> None:
+async def get_existing_hashes(team_name: str) -> dict[str, str]:
+    """returns {content_hash: chunk_id} for all chunks of a team"""
     db = get_client()
-    db.table("chunks").delete().eq("team_name", team_name).execute()
+    res = db.table("chunks").select("id, content_hash").eq("team_name", team_name).execute()
+    return {row["content_hash"]: row["id"] for row in res.data if row.get("content_hash")}
 
 
-async def insert_chunks(chunks: list[dict]) -> None:
+async def delete_chunks_by_ids(ids: list[str]) -> None:
+    if not ids:
+        return
+    db = get_client()
+    db.table("chunks").delete().in_("id", ids).execute()
+
+
+async def insert_chunks(chunks: list) -> None:
     db = get_client()
     rows = [c.model_dump(exclude_none=True) for c in chunks]
     db.table("chunks").insert(rows).execute()
