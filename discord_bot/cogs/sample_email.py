@@ -17,9 +17,9 @@ Write a professional {email_type} email from {team_context['team_name']} to {org
 Subject: {subject_line}
 
 Team context:
-- Subsystems: {', '.join(team_context['subsystems'])}
-- Tech stack: {', '.join(team_context['tech_stack'])}
-- Current blockers: {', '.join(team_context['blockers'])}
+- Subsystems: {', '.join(team_context.get('subsystems') or [])}
+- Tech stack: {', '.join(team_context.get('tech_stack') or [])}
+- Current blockers: {', '.join(team_context.get('blockers') or [])}
 
 Requirements:
 - Tone: professional, concise, direct

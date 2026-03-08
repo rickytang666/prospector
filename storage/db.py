@@ -49,59 +49,72 @@ async def insert_chunks(chunks: list) -> None:
 async def upsert_team_context(data: dict) -> None:
     def _run():
         c = _get_client()
-        c.table("team_context").upsert(data, on_conflict="team_name").execute()
+        c.table("team_context").delete().eq("team_name", data["team_name"]).execute()
+        c.table("team_context").insert(data).execute()
     await asyncio.to_thread(_run)
 
 
 async def get_team_context(team_name: str) -> dict | None:
     def _run():
         c = _get_client()
-        res = c.table("team_context").select("*").eq("team_name", team_name).maybe_single().execute()
-        return res.data
+        res = c.table("team_context").select("*").eq("team_name", team_name).limit(1).execute()
+        return res.data[0] if res.data else None
     return await asyncio.to_thread(_run)
 
 
 async def delete_team_context(team_name: str) -> None:
-    db = get_client()
-    db.table("team_context").delete().eq("team_name", team_name).execute()
+    def _run():
+        c = _get_client()
+        c.table("team_context").delete().eq("team_name", team_name).execute()
+    await asyncio.to_thread(_run)
 
 
 async def delete_team(guild_id: str, team_name: str) -> None:
     """Remove team row from teams table (after nuke)."""
-    db = get_client()
-    db.table("teams").delete().eq("guild_id", str(guild_id)).eq("team_name", team_name).execute()
+    def _run():
+        c = _get_client()
+        c.table("teams").delete().eq("guild_id", str(guild_id)).eq("team_name", team_name).execute()
+    await asyncio.to_thread(_run)
 
 
 async def get_chunks(team_name: str) -> list[dict]:
-    db = get_client()
-    res = db.table("chunks").select("id, team_name, source_type, source_url, content, created_at").eq("team_name", team_name).execute()
-    return res.data or []
+    def _run():
+        c = _get_client()
+        res = c.table("chunks").select("id, team_name, source_type, source_url, content, created_at").eq("team_name", team_name).execute()
+        return res.data or []
+    return await asyncio.to_thread(_run)
 
 
 # ---- teams (setup-team: register team per guild) ----
 async def list_teams(guild_id: str) -> list[dict]:
-    db = get_client()
-    res = db.table("teams").select("*").eq("guild_id", str(guild_id)).execute()
-    return res.data or []
+    def _run():
+        c = _get_client()
+        res = c.table("teams").select("*").eq("guild_id", str(guild_id)).execute()
+        return res.data or []
+    return await asyncio.to_thread(_run)
 
 
 async def upsert_team(guild_id: str, team_name: str, repo_url: str | None = None) -> None:
-    db = get_client()
-    row = {"guild_id": str(guild_id), "team_name": team_name, "repo_url": repo_url or ""}
-    db.table("teams").upsert(row, on_conflict="guild_id,team_name").execute()
+    def _run():
+        c = _get_client()
+        row = {"guild_id": str(guild_id), "team_name": team_name, "repo_url": repo_url or ""}
+        c.table("teams").upsert(row, on_conflict="guild_id,team_name").execute()
+    await asyncio.to_thread(_run)
 
 
 # ---- user_teams (multiple teams per user; one "active" for context) ----
 async def get_user_teams(guild_id: str, user_id: str) -> list[dict]:
     """All teams this user is in; each dict has team_name, is_active."""
-    db = get_client()
-    res = db.table("user_teams").select("team_name, is_active").eq("guild_id", str(guild_id)).eq("user_id", str(user_id)).execute()
-    rows = res.data or []
-    out = []
-    for r in rows:
-        if isinstance(r, dict) and r.get("team_name"):
-            out.append({"team_name": r["team_name"], "is_active": r.get("is_active", True)})
-    return out
+    def _run():
+        c = _get_client()
+        res = c.table("user_teams").select("team_name, is_active").eq("guild_id", str(guild_id)).eq("user_id", str(user_id)).execute()
+        rows = res.data or []
+        out = []
+        for r in rows:
+            if isinstance(r, dict) and r.get("team_name"):
+                out.append({"team_name": r["team_name"], "is_active": r.get("is_active", True)})
+        return out
+    return await asyncio.to_thread(_run)
 
 
 async def get_user_team(guild_id: str, user_id: str) -> str | None:
@@ -115,40 +128,47 @@ async def get_user_team(guild_id: str, user_id: str) -> str | None:
 
 async def set_user_team(guild_id: str, user_id: str, team_name: str) -> None:
     """Add (or re-add) user to team and set it as active."""
-    db = get_client()
-    g, u, n = str(guild_id), str(user_id), team_name.strip()
-    db.table("user_teams").upsert(
-        {"guild_id": g, "user_id": u, "team_name": n, "is_active": True},
-        on_conflict="guild_id,user_id,team_name",
-    ).execute()
-    # Deactivate other teams for this user
-    others = db.table("user_teams").select("id").eq("guild_id", g).eq("user_id", u).neq("team_name", n).execute()
-    for row in (others.data or []):
-        if row.get("id"):
-            db.table("user_teams").update({"is_active": False}).eq("id", row["id"]).execute()
+    def _run():
+        c = _get_client()
+        g, u, n = str(guild_id), str(user_id), team_name.strip()
+        c.table("user_teams").upsert(
+            {"guild_id": g, "user_id": u, "team_name": n, "is_active": True},
+            on_conflict="guild_id,user_id,team_name",
+        ).execute()
+        others = c.table("user_teams").select("id").eq("guild_id", g).eq("user_id", u).neq("team_name", n).execute()
+        for row in (others.data or []):
+            if row.get("id"):
+                c.table("user_teams").update({"is_active": False}).eq("id", row["id"]).execute()
+    await asyncio.to_thread(_run)
 
 
 async def set_active_team(guild_id: str, user_id: str, team_name: str) -> None:
     """Set which team is active for this user (must already be in the team)."""
-    db = get_client()
-    g, u, n = str(guild_id), str(user_id), team_name.strip()
-    db.table("user_teams").update({"is_active": False}).eq("guild_id", g).eq("user_id", u).execute()
-    db.table("user_teams").update({"is_active": True}).eq("guild_id", g).eq("user_id", u).eq("team_name", n).execute()
+    def _run():
+        c = _get_client()
+        g, u, n = str(guild_id), str(user_id), team_name.strip()
+        c.table("user_teams").update({"is_active": False}).eq("guild_id", g).eq("user_id", u).execute()
+        c.table("user_teams").update({"is_active": True}).eq("guild_id", g).eq("user_id", u).eq("team_name", n).execute()
+    await asyncio.to_thread(_run)
 
 
 async def remove_user_team(guild_id: str, user_id: str, team_name: str | None = None) -> None:
     """Remove one membership (if team_name given) or all memberships for this user."""
-    db = get_client()
-    q = db.table("user_teams").delete().eq("guild_id", str(guild_id)).eq("user_id", str(user_id))
-    if team_name:
-        q = q.eq("team_name", team_name.strip())
-    q.execute()
+    def _run():
+        c = _get_client()
+        q = c.table("user_teams").delete().eq("guild_id", str(guild_id)).eq("user_id", str(user_id))
+        if team_name:
+            q = q.eq("team_name", team_name.strip())
+        q.execute()
+    await asyncio.to_thread(_run)
 
 
 async def remove_user_teams_for_team(guild_id: str, team_name: str) -> None:
     """Remove all user associations for a team (e.g. after nuke)."""
-    db = get_client()
-    db.table("user_teams").delete().eq("guild_id", str(guild_id)).eq("team_name", team_name).execute()
+    def _run():
+        c = _get_client()
+        c.table("user_teams").delete().eq("guild_id", str(guild_id)).eq("team_name", team_name).execute()
+    await asyncio.to_thread(_run)
 
 
 async def get_team_context_for_user(guild_id: str, user_id: str) -> dict | None:
@@ -187,7 +207,9 @@ def _escape_like(s: str) -> str:
 
 async def find_chunk_ids_by_query(team_name: str, query: str, limit: int = 20) -> list[str]:
     """Return chunk ids whose content contains the query (case-insensitive)."""
-    db = get_client()
-    pattern = f"%{_escape_like(query)}%"
-    res = db.table("chunks").select("id").eq("team_name", team_name).ilike("content", pattern).limit(limit).execute()
-    return [r["id"] for r in (res.data or []) if r.get("id")]
+    def _run():
+        c = _get_client()
+        pattern = f"%{_escape_like(query)}%"
+        res = c.table("chunks").select("id").eq("team_name", team_name).ilike("content", pattern).limit(limit).execute()
+        return [r["id"] for r in (res.data or []) if r.get("id")]
+    return await asyncio.to_thread(_run)

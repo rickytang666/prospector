@@ -58,9 +58,16 @@ class SetupTeam(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
-        await db.upsert_team(guild_id, team_name, repo)
+        existing = await db.list_teams(guild_id)
+        if any((t.get("team_name") or "").strip() == team_name.strip() for t in existing):
+            await interaction.response.send_message(
+                f"Team **{team_name}** is already registered. Use `/add-context` to add more sources or `/nuke` to reset it.",
+                ephemeral=True,
+            )
+            return
 
         await interaction.response.defer()
+        await db.upsert_team(guild_id, team_name, repo)
         await interaction.followup.send(
             f"Team **{team_name}** registered. Ingesting repository — this may take a minute..."
         )

@@ -41,6 +41,9 @@ async def configure_team_name_autocomplete(interaction: discord.Interaction, cur
 
 
 class ConfigureTeam(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     @app_commands.command(name="configure-team", description="Add or remove yourself from a team (saved to your profile).")
     @app_commands.describe(
         action="Add yourself to a team or remove",

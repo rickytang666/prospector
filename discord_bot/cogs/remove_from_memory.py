@@ -9,6 +9,9 @@ from internal_context.models import Chunk
 
 
 class RemoveFromMemory(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     @app_commands.command(name="remove_from_memory", description="Find and remove chunks that match a query (e.g. inaccurate info).")
     @app_commands.describe(query="Text to search for in stored chunks; matching chunks will be deleted.")
     async def remove_from_memory(self, interaction: discord.Interaction, query: str):

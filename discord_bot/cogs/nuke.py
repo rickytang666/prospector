@@ -10,6 +10,9 @@ TIMEOUT_SEC = 30
 
 
 class Nuke(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     @app_commands.command(name="nuke", description="Wipe all data for your team (chunks, context, assignments). Confirm with ✅.")
     async def nuke(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild_id) if interaction.guild_id else ""

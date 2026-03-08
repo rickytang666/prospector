@@ -14,6 +14,9 @@ from internal_context.models import Chunk
 
 
 class AddContext(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     @app_commands.command(name="add-context", description="Add a documentation source (Notion, Confluence, or URL) to your team.")
     @app_commands.describe(
         source_type="Type of source",

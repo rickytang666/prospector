@@ -2,7 +2,9 @@ import asyncio
 import os
 import sys
 import pathlib
+import traceback
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 _ROOT_DIR = pathlib.Path(__file__).parent.parent.resolve()
@@ -17,15 +19,26 @@ from discord_bot.config import DISCORD_TOKEN, GUILD_ID
 if not GUILD_ID:
     raise ValueError("GUILD_ID environment variable is not set — cannot sync slash commands.")
 
+class BotTree(app_commands.CommandTree):
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not getattr(interaction.client, "synced", False):
+            try:
+                await interaction.response.send_message("Bot is still starting up, please try again in a few seconds.", ephemeral=True)
+            except Exception:
+                pass
+            return False
+        return True
+
 intents = discord.Intents.default()
 intents.message_content = True  # required for /chat thread messages
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, tree_cls=BotTree)
 
 bot.team_configs = {}
 bot.team_context_cache = {}
 bot.email_draft_cache = {}
 bot.chat_threads = set()
+bot.synced = False
 
 COGS = [
     "discord_bot.cogs.help_cog",
@@ -47,18 +60,34 @@ async def load_cogs():
     for cog in COGS:
         try:
             await bot.load_extension(cog)
-            print(f"Loaded {cog}")
+            print(f"[cog] Loaded {cog}")
         except Exception as e:
-            print(f"Failed to load {cog}: {e}")
+            print(f"[cog] FAILED to load {cog}: {e}")
+            traceback.print_exc()
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: Exception):
+    print(f"[cmd error] /{interaction.command.name if interaction.command else '?'} by {interaction.user}: {error}")
+    traceback.print_exc()
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(f"Something went wrong: `{error}`", ephemeral=True)
+        else:
+            await interaction.followup.send(f"Something went wrong: `{error}`", ephemeral=True)
+    except Exception:
+        pass
 
 @bot.event
 async def on_ready():
     guild = discord.Object(id=GUILD_ID)
-    # Copy commands to guild first, then wipe global so there's no duplicate
-    bot.tree.copy_global_to(guild=guild)
-    await bot.tree.sync(guild=guild)
-    bot.tree.clear_commands(guild=None)
-    await bot.tree.sync()
+    try:
+        bot.tree.copy_global_to(guild=guild)
+        await bot.tree.sync(guild=guild)
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync()
+    except Exception as e:
+        print(f"[on_ready] sync error (commands may already be synced): {e}")
+    bot.synced = True
     print(f"Logged in as {bot.user}")
 
 async def start_bot():

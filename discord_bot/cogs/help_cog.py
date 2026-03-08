@@ -21,7 +21,6 @@ HELP_SECTIONS = [
     ("Find support & explain", [
         ("/find-support", "Get ranked support candidates for a query."),
         ("/find-providers", "Find providers for a technical need."),
-        ("/find-sponsors", "Find sponsor-aligned companies."),
         ("/explain-match", "Explain why a candidate fits your team."),
         ("/recruit-gap", "Show inferred recruiting needs for your team."),
     ]),
@@ -34,6 +33,9 @@ HELP_SECTIONS = [
 
 
 class HelpCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
     @app_commands.command(name="help", description="List bot commands and what they do.")
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
