@@ -568,7 +568,15 @@ def gather():
 if __name__ == "__main__":
     import sys
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    if cmd == "discover":
+    if cmd == "all":
+        discover_teams()
+        find_sponsor_pages()
+        gather_from_teams()
+        gather_seeds()
+        from scraper.wikidata import gather_wikidata
+        gather_wikidata(out_file)
+        gather()
+    elif cmd == "discover":
         discover_teams()
     elif cmd == "find_sponsors":
         find_sponsor_pages()

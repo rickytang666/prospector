@@ -73,6 +73,20 @@ def get_affinity(company):
             "text": f"Sponsor of {assoc} — explicitly supports student engineering teams",
             "source_url": company.get("source_url", ""),
         })
+    elif src_type == "wikidata_vertical":
+        vertical = company.get("vertical", "engineering")
+        evidence.append({
+            "type": "industry_vertical",
+            "text": f"Active company in {vertical.replace('_', ' ')} industry",
+            "source_url": company.get("source_url", ""),
+        })
+    elif src_type == "hardcoded_seed":
+        vertical = company.get("vertical", "engineering")
+        evidence.append({
+            "type": "known_engineering_company",
+            "text": f"Known engineering/tech company in {vertical.replace('_', ' ')} sector",
+            "source_url": company.get("url", ""),
+        })
 
     return evidence
 

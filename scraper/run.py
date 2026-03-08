@@ -12,7 +12,7 @@ import shutil
 from dotenv import load_dotenv
 from supabase import create_client
 
-from scraper.gather import gather
+from scraper.gather import gather, gather_seeds, gather_from_teams, discover_teams, find_sponsor_pages
 from scraper.scrape import scrape
 from scraper.enrich import enrich
 from scraper.embedding import embed_entity, EMBEDDING_MODEL, get_embedding_error_hint
@@ -330,6 +330,12 @@ def run_pipeline(
                 json.dump(params.sources, f)
             g.sources_file = tmp
 
+        discover_teams()
+        find_sponsor_pages()
+        gather_from_teams()
+        gather_seeds()
+        from scraper.wikidata import gather_wikidata
+        gather_wikidata(data_dir / "companies.json")
         gather()
         scrape(limit=params.limit)
 
