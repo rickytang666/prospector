@@ -235,9 +235,9 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
         allv = _compose(sem,t,s,w,weights)
         if q_tags:
             if q_ov:
-                allv += 0.18 * (len(q_ov) / max(1, len(q_tags)))
+                allv += 0.03 * (len(q_ov) / max(1, len(q_tags)))
             else:
-                allv -= 0.08
+                allv -= 0.01
         allv = clamp01(allv)
         sb = ScoreBreakdown(
             semantic_score=round(sem,4),
