@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from storage import db
@@ -58,13 +59,30 @@ async def ingest(req: IngestRequest):
             print(f"got {len(discord_chunks)} chunks from discord channel {channel_id}")
 
     if chunks:
-        chunks = await asyncio.to_thread(embed_chunks, chunks)
-        await db.insert_chunks(chunks)
+        # stamp each chunk with hash
+        for c in chunks:
+            c.content_hash = hashlib.md5(c.content.encode()).hexdigest()
+
+        existing = await db.get_existing_hashes(req.team_name)
+        new_hashes = {c.content_hash for c in chunks}
+
+        # del chunks that no longer exist
+        stale_ids = [chunk_id for h, chunk_id in existing.items() if h not in new_hashes]
+        await db.delete_chunks_by_ids(stale_ids)
+        if stale_ids:
+            print(f"deleted {len(stale_ids)} stale chunks")
+        
+        new_chunks = [c for c in chunks if c.content_hash not in existing]
+        if new_chunks:
+            new_chunks = await asyncio.to_thread(embed_chunks, new_chunks)
+            await db.insert_chunks(new_chunks)
+        print(f"inserted {len(new_chunks)} new chunks, skipped {len(chunks) - len(new_chunks)} unchanged")
+
         ctx = await asyncio.to_thread(extract_team_context, req.team_name, chunks)
         await db.upsert_team_context(ctx)
         print(f"team context: {ctx}")
 
-    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(chunks), "context": ctx if chunks else None}
+    return {"status": "ok", "team": req.team_name, "chunks_inserted": len(new_chunks) if chunks else 0, "context": ctx if chunks else None}
 
 
 @router.get("/context/{team_name}")
