@@ -25,24 +25,40 @@ def support_fit(e: Entity, ctx: TeamContext):
     return len(n.intersection(h)) / max(1, len(n))
 
 
-def waterloo_affinity(e: Entity):
+def waterloo_tier_score_and_label(e: Entity):
     ev = e.waterloo_affinity_evidence or []
-    if not ev: return 0.0
+    if not ev:
+        return 0.0, "None"
+    tier = {
+        "team_sponsor": (1.00, "Sponsor"),
+        "waterloo_partner": (0.90, "Partner"),
+        "official_partner": (0.90, "Partner"),
+        "waterloo_alumni_founder": (0.75, "Alumni"),
+        "alumni_link": (0.75, "Alumni"),
+        "startup_incubator": (0.55, "Incubator"),
+        "yc_company": (0.35, "YC"),
+        "official_page": (0.35, "UW-Linked"),
+    }
+    best = 0.0
+    best_label = "UW-Linked"
+    seen = set()
+    for z in ev:
+        t = (z.type or "").strip().lower()
+        if not t:
+            continue
+        seen.add(t)
+        sc, lb = tier.get(t, (0.20, "UW-Linked"))
+        if sc > best:
+            best = sc
+            best_label = lb
+    if len(seen) > 1:
+        best = min(1.0, best + 0.05)
+    return best, best_label
 
-    strong = {"team_sponsor","official_page","official_partner"}
 
-    if len(ev) >= 2:
-        got_strong = False
-        for z in ev:
-            if (z.type or "").lower() in strong:
-                got_strong = True
-                break
-        if got_strong: return 1.0
-        return 0.8
-
-    t = (ev[0].type or "").lower()
-    if t in strong: return 0.6
-    return 0.3
+def waterloo_affinity(e: Entity):
+    sc, _ = waterloo_tier_score_and_label(e)
+    return sc
 
 
 def compose_scores(sem: float, tag: float, sup: float, wat: float):

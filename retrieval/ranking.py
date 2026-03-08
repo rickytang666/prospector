@@ -238,7 +238,7 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
         s = _sup(e,tc)
         w = _wat(e)
         allv = _compose(sem,t,s,w,weights)
-        if q_tags:
+        if q_tags and float(weights.get("tag_overlap", 0.0)) > 0.0:
             if q_ov:
                 allv += 0.03 * (len(q_ov) / max(1, len(q_tags)))
             else:
