@@ -105,11 +105,7 @@ def _profile_weights(profile: str):
     return dict(RANKING_WEIGHTS)
 
 def _profile_filters(profile: str, filters: dict[str, Any] | None):
-    f = dict(filters or {})
-    p = (profile or "").strip().lower()
-    if p == "sponsors":
-        f["entity_type"] = "company"
-    return f
+    return dict(filters or {})
 
 def _entity_ok(e: Entity, filters: dict[str, Any] | None):
     if not filters:
@@ -191,14 +187,10 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
     kk = int(k) if isinstance(k, int) else DEFAULT_K
     if kk < 1:
         kk = 1
-    max_k = 25
-    if (profile or "").strip().lower() == "sponsors":
-        max_k = 200
+    max_k = 200
     if kk > max_k:
         kk = max_k
     kk2 = max(1, kk * 2)
-    if (profile or "").strip().lower() == "sponsors":
-        kk2 = max(kk2, kk * 6)
 
     raw=[]
     weights = _profile_weights(profile)
@@ -264,15 +256,9 @@ def _rank_candidates_phase1(team_context: TeamContext | dict[str, Any], query: s
         ))
 
     out = _dedupe_candidates(out)
-    out_all = list(out)
     min_keep = MIN_RESULT_SCORE
-    if (profile or "").strip().lower() == "sponsors":
-        min_keep = MIN_RESULT_SCORE * 0.5
     out = [x for x in out if x.overall_score >= min_keep]
-    if not out and out_all:
-        out = out_all[: min(kk, 3)]
-    else:
-        out = out[:kk]
+    out = out[:kk]
     top = out[0].overall_score if out else 0.0
     conf = "low"
     if top >= MEDIUM_CONFIDENCE_TOP1:

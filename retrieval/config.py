@@ -1,6 +1,6 @@
-RANKING_WEIGHTS = {"semantic":0.90,"tag_overlap":0.00,"support_fit":0.00,"waterloo_affinity":0.10}
-RANKING_WEIGHTS_PROVIDERS = {"semantic":0.90,"tag_overlap":0.00,"support_fit":0.00,"waterloo_affinity":0.10}
-RANKING_WEIGHTS_SPONSORS = {"semantic":0.90,"tag_overlap":0.00,"support_fit":0.00,"waterloo_affinity":0.10}
+RANKING_WEIGHTS = {"semantic":1.00,"tag_overlap":0.00,"support_fit":0.00,"waterloo_affinity":0.00}
+RANKING_WEIGHTS_PROVIDERS = {"semantic":1.00,"tag_overlap":0.00,"support_fit":0.00,"waterloo_affinity":0.00}
+RANKING_WEIGHTS_SPONSORS = {"semantic":1.00,"tag_overlap":0.00,"support_fit":0.00,"waterloo_affinity":0.00}
 EMBEDDING_MODEL = EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
 DEFAULT_K = 5
