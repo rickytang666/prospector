@@ -3,6 +3,7 @@ openai
 python-dotenv
 fastapi
 uvicorn[standard]
+slowapi
 discord.py==2.6.4
 httpx
 beautifulsoup4

@@ -55,10 +55,11 @@ class SampleEmail(commands.Cog):
         type: app_commands.Choice[str],
         subject_line: str,
     ):
-        team_context = self.bot.team_context_cache.get(interaction.guild_id)
+        from discord_bot.team_ctx import get_team_context_for_member
+        team_context = await get_team_context_for_member(self.bot, interaction.guild_id, interaction.user.id)
         if not team_context:
             await interaction.response.send_message(
-                "No team context found. Run `/setup-team` and `/analyze-team` first.",
+                "Run `/configure-team add` and `/analyze-team` first.",
                 ephemeral=True,
             )
             return
