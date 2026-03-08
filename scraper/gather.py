@@ -258,6 +258,27 @@ def fetch_page(url):
     return r.text
 
 
+def _extract_image_links(html: str) -> str:
+    """pull out <a><img></a> sponsor logo patterns — LLMs miss these if not surfaced explicitly."""
+    soup = BeautifulSoup(html, "html.parser")
+    entries = []
+    seen_hrefs = set()
+    for a in soup.find_all("a", href=True):
+        img = a.find("img")
+        if not img:
+            continue
+        href = a["href"].strip()
+        if not href.startswith("http") or href in seen_hrefs:
+            continue
+        seen_hrefs.add(href)
+        alt = img.get("alt", "").strip()
+        src = img.get("src", "").strip()
+        # use alt text if present, else guess from image filename
+        name_hint = alt or src.split("/")[-1].split(".")[0].replace("-", " ").replace("_", " ")
+        entries.append(f"- name: {name_hint!r}, url: {href}")
+    return "\n".join(entries)
+
+
 def extract_with_llm(html, source):
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
@@ -266,10 +287,15 @@ def extract_with_llm(html, source):
     if page_owner:
         owner_instruction = f"\nThis page is from \"{page_owner}\". Do NOT include \"{page_owner}\" or the page owner itself in the list—only list external sponsors or partners."
 
+    image_links = _extract_image_links(html)
+    image_links_section = ""
+    if image_links:
+        image_links_section = f"\n\nLinked images found on page (likely sponsor logos — prioritize these):\n{image_links}"
+
     prompt = f"""Extract all company or organization names and their website URLs from this HTML.
 Return ONLY a JSON array like: [{{"name": "...", "url": "..."}}]
 If you can't find a direct URL for a company, try to infer it (e.g. "Intel" -> "https://intel.com").
-Only include real companies/orgs that are sponsors or partners listed on the page. Skip navigation links and generic stuff.{owner_instruction}
+Only include real companies/orgs that are sponsors or partners listed on the page. Skip navigation links and generic stuff.{owner_instruction}{image_links_section}
 
 HTML:
 {html[:50000]}"""
@@ -359,6 +385,88 @@ def dedupe(companies):
     return list(seen.values())
 
 
+teams_scraped_file = data_dir / "teams_scraped.txt"
+
+
+def _load_scraped() -> set:
+    if not teams_scraped_file.exists():
+        return set()
+    return set(teams_scraped_file.read_text().splitlines())
+
+
+def _mark_scraped(name: str):
+    with open(teams_scraped_file, "a") as f:
+        f.write(name + "\n")
+
+
+def gather_from_teams():
+    """step 1c: scrape each team's sponsor page (or homepage if not found) and extract companies."""
+    if not sponsor_pages_file.exists():
+        print("no team_sponsor_pages.json found, run find_sponsors first")
+        return
+
+    with open(sponsor_pages_file) as f:
+        teams = json.load(f)
+
+    scraped = _load_scraped()
+
+    existing = []
+    if out_file.exists():
+        with open(out_file) as f:
+            existing = json.load(f)
+    all_companies = list(existing)
+
+    to_do = [t for t in teams if t["name"] not in scraped]
+    print(f"{len(to_do)} teams to scrape, {len(scraped)} already done")
+
+    for i, team in enumerate(to_do):
+        name = team["name"]
+
+        if team.get("found") and team.get("sponsor_page_url"):
+            url = team["sponsor_page_url"]
+            label = "sponsor page"
+        elif team.get("website_url"):
+            url = team["website_url"]
+            label = "homepage (no sponsor page found, trying anyway)"
+        else:
+            print(f"[{i+1}/{len(to_do)}] {name} - no url at all, skipping")
+            _mark_scraped(name)
+            continue
+
+        print(f"[{i+1}/{len(to_do)}] {name} ({label})")
+
+        try:
+            html = fetch_page(url)
+        except Exception as e:
+            print(f"  fetch failed: {e}")
+            _mark_scraped(name)
+            continue
+
+        # SPA shell
+        plain_text = BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True)
+        if len(plain_text) < 300:
+            print(f"  very little text ({len(plain_text)} chars), likely SPA shell — skipping")
+            _mark_scraped(name)
+            continue
+
+        src = {"url": url, "type": "design_team_sponsor", "team": name}
+        companies = extract_with_llm(html, src)
+        print(f"  extracted {len(companies)} companies")
+
+        all_companies.extend(companies)
+        _mark_scraped(name)
+        with open(out_file, "w") as f:
+            json.dump(all_companies, f, indent=2)
+
+        time.sleep(2)
+
+    deduped = dedupe(all_companies)
+    print(f"\ntotal: {len(all_companies)}, after dedup: {len(deduped)}")
+    with open(out_file, "w") as f:
+        json.dump(deduped, f, indent=2)
+    print(f"saved to {out_file}")
+
+
 def gather():
     data_dir.mkdir(exist_ok=True)
 
@@ -409,5 +517,16 @@ if __name__ == "__main__":
         discover_teams()
     elif cmd == "find_sponsors":
         find_sponsor_pages()
+    elif cmd == "scrape_teams":
+        gather_from_teams()
+    elif cmd == "reset_team" and len(sys.argv) > 2:
+        # remove a team
+        team_name = " ".join(sys.argv[2:]).lower()
+        if teams_scraped_file.exists():
+            lines = teams_scraped_file.read_text().splitlines()
+            kept = [l for l in lines if l.lower() != team_name]
+            removed = len(lines) - len(kept)
+            teams_scraped_file.write_text("\n".join(kept) + ("\n" if kept else ""))
+            print(f"removed {removed} entry(s) for '{team_name}'")
     else:
         gather()
