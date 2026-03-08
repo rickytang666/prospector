@@ -3,8 +3,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from retrieval.api import rank_candidates_dict, find_providers_dict, find_sponsors_dict
-from ui.embeds import candidates_embed
-from ui.buttons import CandidateView
+from discord_bot.ui.embeds import candidates_embed
+from discord_bot.ui.buttons import CandidateView
 
 
 class FindSupport(commands.Cog):

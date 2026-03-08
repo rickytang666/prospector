@@ -5,8 +5,8 @@ from discord.ext import commands
 from email.mime.text import MIMEText
 
 from config import GMAIL_USER, GMAIL_APP_PASSWORD
-from ui.buttons import CopyButton
-from ui.embeds import email_sent_embed, _parse_subject_body
+from discord_bot.ui.buttons import CopyButton
+from discord_bot.ui.embeds import email_sent_embed, _parse_subject_body
 
 
 async def _send_email(from_email: str, to_email: str, subject: str, body: str) -> None:

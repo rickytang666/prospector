@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from ui.embeds import explanation_embed
+from discord_bot.ui.embeds import explanation_embed
 
 
 class CopyButton(discord.ui.Button):

@@ -5,23 +5,11 @@ import pathlib
 import discord
 from discord.ext import commands
 
-# Ensure both discord_bot/ and project root are importable regardless of how the
-# process is started (python discord_bot/bot.py vs uvicorn main:app).
-_BOT_DIR = pathlib.Path(__file__).parent
-_ROOT_DIR = _BOT_DIR.parent
-# Ensure project root is reachable (for storage, retrieval, internal_context).
-if str(_ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(_ROOT_DIR))
-# Unconditionally place discord_bot/ at index 0 — it must shadow the root-level
-# config.py so that cog imports like `from config import GEMINI_API_KEY` resolve
-# to discord_bot/config.py, not the backend config.
-# (When run as `python discord_bot/bot.py` Python pre-populates sys.path[0] with
-# the script dir, but inserting ROOT above pushes it back to index 1.)
-try:
-    sys.path.remove(str(_BOT_DIR))
-except ValueError:
-    pass
-sys.path.insert(0, str(_BOT_DIR))
+if __name__ == "__main__":
+    _BOT_DIR = pathlib.Path(__file__).parent
+    _ROOT_DIR = _BOT_DIR.parent
+    if str(_ROOT_DIR) not in sys.path:
+        sys.path.insert(0, str(_ROOT_DIR))
 
 from config import DISCORD_TOKEN, GUILD_ID
 
@@ -34,13 +22,13 @@ bot.team_context_cache = {}
 bot.email_draft_cache = {}
 
 COGS = [
-    "cogs.setup_team",
-    "cogs.analyze_team",
-    "cogs.find_support",
-    "cogs.explain_match",
-    "cogs.recruit_gap",
-    "cogs.sample_email",
-    "cogs.send_email",
+    "discord_bot.cogs.setup_team",
+    "discord_bot.cogs.analyze_team",
+    "discord_bot.cogs.find_support",
+    "discord_bot.cogs.explain_match",
+    "discord_bot.cogs.recruit_gap",
+    "discord_bot.cogs.sample_email",
+    "discord_bot.cogs.send_email",
 ]
 
 async def load_cogs():

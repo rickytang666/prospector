@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from retrieval.api import retrieve_context_pack_dict
-from ui.embeds import explanation_embed
+from discord_bot.ui.embeds import explanation_embed
 
 
 class ExplainMatch(commands.Cog):

@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from storage import db
-from ui.embeds import team_context_embed
+from discord_bot.ui.embeds import team_context_embed
 
 
 class AnalyzeTeam(commands.Cog):
