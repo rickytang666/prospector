@@ -5,6 +5,8 @@ from discord.ext import commands
 from discord import app_commands
 from internal_context.ingestion.github import scrape_github
 from internal_context.ingestion.website import scrape_website
+from internal_context.ingestion.notion import scrape_notion
+from internal_context.ingestion.confluence import scrape_confluence
 from internal_context.embedding.embedder import embed_chunks
 from internal_context.extraction.extractor import extract_team_context
 from storage import db
@@ -38,6 +40,8 @@ class SetupTeam(commands.Cog):
         team_name="Name of the team (e.g. UW Orbital)",
         repo="GitHub org URL (e.g. https://github.com/UWOrbital)",
         website_url="Optional team website or docs URL",
+        notion_url="Optional Notion page URL",
+        confluence_url="Optional Confluence space URL (e.g. https://team.atlassian.net/wiki/spaces/KEY)",
     )
     @app_commands.autocomplete(repo=repo_autocomplete, team_name=team_name_autocomplete)
     async def setup_team(
@@ -46,6 +50,8 @@ class SetupTeam(commands.Cog):
         team_name: str,
         repo: str,
         website_url: str = "",
+        notion_url: str = "",
+        confluence_url: str = "",
     ):
         guild_id = interaction.guild_id
 
@@ -70,6 +76,22 @@ class SetupTeam(commands.Cog):
             github_chunks = await asyncio.to_thread(scrape_github, repo, team_name)
             chunks.extend(github_chunks)
             print(f"[setup_team] {len(github_chunks)} chunks from github")
+
+            if notion_url:
+                print(f"[setup_team] scraping notion: {notion_url}")
+                await interaction.followup.send(f"Scraping Notion page...")
+                notion_chunks = await asyncio.to_thread(scrape_notion, notion_url, team_name)
+                chunks.extend(notion_chunks)
+                print(f"[setup_team] {len(notion_chunks)} chunks from notion")
+                await interaction.followup.send(f"Notion: {len(notion_chunks)} chunks indexed.")
+
+            if confluence_url:
+                print(f"[setup_team] scraping confluence: {confluence_url}")
+                await interaction.followup.send(f"Scraping Confluence space...")
+                confluence_chunks = await asyncio.to_thread(scrape_confluence, confluence_url, team_name)
+                chunks.extend(confluence_chunks)
+                print(f"[setup_team] {len(confluence_chunks)} chunks from confluence")
+                await interaction.followup.send(f"Confluence: {len(confluence_chunks)} chunks indexed.")
 
             if chunks:
                 for c in chunks:
