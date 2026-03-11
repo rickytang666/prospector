@@ -214,6 +214,22 @@ JSON only, no markdown: {{"summary": "...", "tags": ["..."]}}"""
         return {"summary": "", "tags": []}
 
 
+_TEMPLATE_PHRASES = [
+    "is a company in the",
+    "is a technology or engineering company",
+    "is a startup from the velocity incubator",
+    "is a sponsor of ",
+    "sponsors waterloo design teams",
+]
+
+def _has_real_summary(entity: dict) -> bool:
+    """true if the entity has a real summary, not a template placeholder."""
+    summary = (entity.get("summary") or "").strip().lower()
+    if not summary:
+        return False
+    return not any(phrase in summary for phrase in _TEMPLATE_PHRASES)
+
+
 def _load_scraped_text(name: str) -> str:
     pages_file = raw_dir / _slug(name) / "pages.json"
     if not pages_file.exists():
@@ -246,8 +262,8 @@ def enrich(limit=None, max_workers=10):
             existing = json.load(f)
         if isinstance(existing, list):
             entities = existing
-            # only skip entities that already have a real summary — empty ones get another pass
-            enriched_names = {e["name"] for e in entities if e.get("summary")}
+            # skip only entities with a real summary — empty or template ones get another pass
+            enriched_names = {e["name"] for e in entities if _has_real_summary(e)}
     if enriched_names:
         print(f"resuming: {len(enriched_names)} have summary, {len(companies) - len(enriched_names)} to process")
 
