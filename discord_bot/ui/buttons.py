@@ -53,9 +53,10 @@ class EmailView(discord.ui.View):
 class CandidateButton(discord.ui.Button):
 
     def __init__(self, candidate):
+        name = candidate.get("name", "Candidate")
         super().__init__(
-            label=f"Explain {candidate.get('name','Candidate')}",
-            style=discord.ButtonStyle.primary
+            label=f"Explain {name[:20]}",
+            style=discord.ButtonStyle.primary,
         )
         self.candidate = candidate
 
@@ -78,11 +79,49 @@ class CandidateButton(discord.ui.Button):
         await interaction.response.send_message(embed=embed)
 
 
+class DraftEmailButton(discord.ui.Button):
+
+    def __init__(self, candidate):
+        name = candidate.get("name", "Candidate")
+        super().__init__(
+            label=f"Draft Email → {name[:18]}",
+            style=discord.ButtonStyle.secondary,
+        )
+        self.candidate = candidate
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        from discord_bot.ai import generate_email
+        from discord_bot.ui.embeds import email_draft_embed
+
+        key = (str(interaction.guild_id), str(interaction.user.id))
+        team_context = getattr(interaction.client, "team_context_cache", {}).get(key)
+        if not team_context:
+            await interaction.followup.send("Run `/analyze-team` first to load your team context.", ephemeral=True)
+            return
+
+        c = self.candidate
+        org = c.get("name", "this company")
+        reasons = c.get("matched_reasons") or []
+        matched_reason = reasons[0] if reasons else ""
+
+        try:
+            draft = await generate_email(team_context, org, "sponsorship", matched_reason)
+        except Exception as e:
+            await interaction.followup.send(f"Failed to generate email: {e}", ephemeral=True)
+            return
+
+        interaction.client.email_draft_cache[interaction.guild_id] = draft
+        embed = email_draft_embed(draft, org, "sponsorship")
+        view = EmailView(draft, interaction.client)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
 
 class CandidateView(discord.ui.View):
 
     def __init__(self, candidates):
-        super().__init__(timeout=180)
+        super().__init__(timeout=300)
 
-        for candidate in candidates[:5]:
+        for candidate in candidates[:7]:
             self.add_item(CandidateButton(candidate))
+            self.add_item(DraftEmailButton(candidate))

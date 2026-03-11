@@ -76,6 +76,37 @@ Return JSON: {{"contacts": ["dept name", ...]}} with exactly {len(names)} string
     ]
 
 
+async def generate_email(team_context: dict, organization: str, email_type: str, matched_reason: str = "") -> str:
+    """Draft a cold sponsorship/outreach email. matched_reason gives company-specific context."""
+    subsystems = ", ".join(team_context.get("subsystems") or [])
+    tech = ", ".join(team_context.get("tech_stack") or [])
+    blockers = ", ".join(team_context.get("blockers") or [])
+    company_context = f"Why this company was recommended: {matched_reason}" if matched_reason else ""
+
+    prompt = f"""Write a {email_type} email from {team_context['team_name']} to {organization}.
+
+Team context:
+- Subsystems: {subsystems}
+- Tech stack: {tech}
+- Current blockers: {blockers}
+{company_context}
+
+Requirements:
+- Tone: professional, concise, direct
+- Length: 150-250 words
+- First line must be "Subject: <subject line>"
+- No placeholders — write a complete, sendable draft
+- {"Request sponsorship, hardware, software licenses, or monetary support" if email_type == "sponsorship" else "Propose technical collaboration or outreach"}
+- Reference specific things about {organization} if context is provided above"""
+
+    resp = await _get_client().chat.completions.create(
+        model=_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=600,
+    )
+    return (resp.choices[0].message.content or "").strip()
+
+
 async def expand_recommended_ask(ask: str, entity_name: str, team_name: str) -> str:
     """Expands a brief recommended ask into exactly 3 professional sentences."""
     prompt = f"""Expand the following into exactly 3 clear, professional sentences that {team_name} could send to {entity_name}:
