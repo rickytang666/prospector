@@ -1,8 +1,10 @@
 # /chat: RAG-backed thread; internal context is only for the configured team by name.
 
 import asyncio
+import json
 import os
 import time
+from pathlib import Path
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -11,6 +13,23 @@ from openai import AsyncOpenAI
 
 CHAT_COOLDOWN_SEC = 8
 _chat_last: dict[tuple[int, int], float] = {}
+
+_THREADS_FILE = Path(__file__).parent.parent.parent / "data" / "chat_threads.json"
+
+
+def _load_thread_ids() -> set[int]:
+    try:
+        return set(json.loads(_THREADS_FILE.read_text()))
+    except Exception:
+        return set()
+
+
+def _save_thread_ids(ids: set[int]) -> None:
+    try:
+        _THREADS_FILE.parent.mkdir(exist_ok=True)
+        _THREADS_FILE.write_text(json.dumps(list(ids)))
+    except Exception as e:
+        print(f"failed to save chat_threads: {e}")
 
 
 def _get_context_pack(team_context, query):
@@ -97,7 +116,7 @@ class Chat(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         if not hasattr(bot, "chat_threads"):
-            bot.chat_threads = set()
+            bot.chat_threads = _load_thread_ids()
 
     @app_commands.command(name="chat", description="Start a new thread to chat with context from your team and our sponsor database.")
     async def chat(self, interaction: discord.Interaction):
@@ -134,6 +153,7 @@ class Chat(commands.Cog):
             return
 
         self.bot.chat_threads.add(thread.id)
+        _save_thread_ids(self.bot.chat_threads)
         team_name = team_context.get("team_name", "your team")
 
         embed = discord.Embed(
