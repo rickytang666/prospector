@@ -239,9 +239,15 @@ def _rank_candidates_phase1(
         if e.entity_id not in semantic_ids:
             all_raw.append((e, sem))
 
+    team_lower = tc.team_name.strip().lower()
     scored = []
     for e, sem in all_raw:
         if not _entity_ok(e, filters2):
+            continue
+        # skip the team itself and any company already sponsoring this team
+        if e.name.strip().lower() == team_lower:
+            continue
+        if _already_sponsors_team(e, tc.team_name):
             continue
         scored.append(_score_entity(e, sem, weights, ctx_tags, q_tags, tc))
 
