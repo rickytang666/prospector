@@ -1,13 +1,12 @@
 # /chat: RAG-backed thread; internal context is only for the configured team by name.
 
 import asyncio
+import os
 import time
 import discord
 from discord import app_commands
 from discord.ext import commands
-from google import genai
-
-from discord_bot.config import GEMINI_API_KEY
+from openai import AsyncOpenAI
 
 
 CHAT_COOLDOWN_SEC = 8
@@ -78,20 +77,20 @@ Use the retrieved context when relevant. Be concise. Reply in plain text (no mar
 
 
 async def _generate_reply(prompt: str, team_name: str):
-    if not GEMINI_API_KEY:
-        return "Gemini API key not configured."
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        return "OpenRouter API key not configured."
+    client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
     system = _system_instruction(team_name or "the team")
-
-    def _run():
-        resp = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config={"system_instruction": system},
-        )
-        return resp.text if hasattr(resp, "text") else str(resp)
-
-    return await asyncio.to_thread(_run)
+    resp = await client.chat.completions.create(
+        model="google/gemini-2.5-flash-lite",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=800,
+    )
+    return (resp.choices[0].message.content or "").strip()
 
 
 class Chat(commands.Cog):
