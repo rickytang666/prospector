@@ -193,6 +193,23 @@ def explanation_embed(data, team_name=None):
     if contact_bits:
         embed.add_field(name="Contact", value=" • ".join(contact_bits), inline=False)
 
+    # score breakdown
+    sb = data.get("score_breakdown") or {}
+    overall = data.get("overall_score")
+    if sb or overall is not None:
+        def _bar(v): return score_bar(float(v), length=8)
+        lines = []
+        if overall is not None:
+            lines.append(f"Overall  `{_bar(overall)}`")
+        if sb.get("semantic_score") is not None:
+            lines.append(f"Semantic `{_bar(sb['semantic_score'])}`")
+        if sb.get("support_fit_score") is not None:
+            lines.append(f"Support  `{_bar(sb['support_fit_score'])}`")
+        if sb.get("waterloo_affinity_score") is not None:
+            lines.append(f"Waterloo `{_bar(sb['waterloo_affinity_score'])}`")
+        if lines:
+            embed.add_field(name="Score Breakdown", value="\n".join(lines), inline=False)
+
     tags = [t for t in (data.get("tags") or []) if t]
     if tags:
         embed.add_field(name="Tags", value=" ".join(f"`{t}`" for t in tags[:12]), inline=False)

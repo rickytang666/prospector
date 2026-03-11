@@ -109,6 +109,8 @@ class CandidateButton(discord.ui.Button):
             "contact_email_verified": False,
             "website": c.get("canonical_url", ""),
             "waterloo_affinity_evidence": c.get("waterloo_affinity_evidence") or [],
+            "overall_score": c.get("overall_score", 0.0),
+            "score_breakdown": c.get("score_breakdown") or {},
         }
         key = (str(interaction.guild_id), str(interaction.user.id))
         team_context = getattr(interaction.client, "team_context_cache", {}).get(key)

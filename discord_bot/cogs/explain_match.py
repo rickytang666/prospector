@@ -61,6 +61,8 @@ class ExplainMatch(commands.Cog):
             "contact_email_verified": contact.get("contact_email_verified", False),
             "website": contact.get("website", ""),
             "waterloo_affinity_evidence": entity.get("waterloo_affinity_evidence") or [],
+            "overall_score": entity.get("overall_score", 0.0),
+            "score_breakdown": entity.get("score_breakdown") or {},
         }
 
         embed = explanation_embed(explanation, team_name=team_context["team_name"])
