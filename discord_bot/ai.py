@@ -1,14 +1,17 @@
 import json
-from google import genai
-from discord_bot.config import GEMINI_API_KEY
+import os
+from openai import AsyncOpenAI
 
 _client = None
 
 def _get_client():
     global _client
     if _client is None:
-        _client = genai.Client(api_key=GEMINI_API_KEY)
+        key = os.getenv("OPENROUTER_API_KEY", "").strip()
+        _client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
     return _client
+
+_MODEL = "google/gemini-2.5-flash-lite"
 
 
 async def get_contact_infos(candidates: list[dict]) -> list[dict]:
@@ -36,18 +39,18 @@ Keep it short — a job title or team name only (e.g. "University Partnerships",
 
 Companies: {json.dumps(names)}
 
-Return a JSON array with exactly {len(names)} strings in the same order. Return only valid JSON, no explanation."""
+Return JSON: {{"contacts": ["dept name", ...]}} with exactly {len(names)} strings in the same order."""
 
     try:
-        response = await _get_client().aio.models.generate_content(
-            model="gemini-2.0-flash", contents=prompt
+        resp = await _get_client().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            max_tokens=300,
         )
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```", 2)[1]
-            if text.startswith("json"):
-                text = text[4:]
-        contact_persons = json.loads(text)
+        parsed = json.loads(resp.choices[0].message.content)
+        # model may return {"contacts": [...]} or just [...]
+        contact_persons = parsed if isinstance(parsed, list) else parsed.get("contacts", parsed.get("result", []))
         if not isinstance(contact_persons, list):
             contact_persons = [""] * len(entries)
     except Exception as e:
@@ -78,10 +81,12 @@ Requirements:
 - Return only the 3 sentences, no labels or extra text"""
 
     try:
-        response = await _get_client().aio.models.generate_content(
-            model="gemini-2.0-flash", contents=prompt
+        resp = await _get_client().chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
         )
-        return response.text.strip()
+        return resp.choices[0].message.content.strip()
     except Exception as e:
         print(f"[ai] expand_recommended_ask failed: {e}")
         return ask
