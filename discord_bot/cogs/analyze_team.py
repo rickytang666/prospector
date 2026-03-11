@@ -68,7 +68,7 @@ class AnalyzeTeam(commands.Cog):
             **ctx,
             "recruiting_gaps": recruiting_gaps,
         }
-        key = (guild_id, user_id)
+        key = (str(guild_id), str(user_id))
         if not hasattr(interaction.client, "team_context_cache"):
             interaction.client.team_context_cache = {}
         interaction.client.team_context_cache[key] = team_context
