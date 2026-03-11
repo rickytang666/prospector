@@ -51,6 +51,7 @@ COGS = [
     "discord_bot.cogs.configure_team",
     "discord_bot.cogs.analyze_team",
     "discord_bot.cogs.add_context",
+    "discord_bot.cogs.list_sources",
     "discord_bot.cogs.find_support",
     "discord_bot.cogs.explain_match",
     "discord_bot.cogs.recruit_gap",

@@ -15,6 +15,7 @@ HELP_SECTIONS = [
     ]),
     ("Context & memory", [
         ("/add-context", "Add a doc source (Notion, Confluence, or URL) to your team."),
+        ("/list-sources", "Show all ingested sources and chunk counts for your team."),
         ("/remove_from_memory", "Find and delete chunks by search query (e.g. fix wrong info)."),
         ("/nuke", "Wipe all data for your team (confirm with ✅)."),
     ]),
