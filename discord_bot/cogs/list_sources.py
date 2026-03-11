@@ -1,7 +1,27 @@
+import re
 import discord
 from discord.ext import commands
 from discord import app_commands
 from storage import db
+
+
+def _group_key(source_type: str, url: str) -> str:
+    """collapse individual page urls into a meaningful group label"""
+    if not url or url == "(no url)":
+        return "(unknown)"
+    if source_type in ("github_readme", "github_issue"):
+        # extract org/repo from github url
+        m = re.search(r"github\.com/([^/]+/[^/]+)", url)
+        return f"github.com/{m.group(1)}" if m else url
+    if source_type == "confluence":
+        # extract space key: /wiki/spaces/KEY
+        m = re.search(r"/wiki/spaces/([^/]+)", url)
+        return m.group(1) + " space" if m else url
+    if source_type in ("notion", "website"):
+        # group by domain
+        m = re.search(r"https?://([^/]+)", url)
+        return m.group(1) if m else url
+    return url
 
 
 class ListSources(commands.Cog):
@@ -24,27 +44,20 @@ class ListSources(commands.Cog):
             await interaction.followup.send(f"No sources ingested for **{team_name}** yet.", ephemeral=True)
             return
 
-        # group by source_url, track source_type and chunk count
-        sources: dict[str, dict] = {}
+        # group by (source_type, group_key) → chunk count + one representative url
+        groups: dict[tuple[str, str], dict] = {}
         for r in rows:
             url = r.get("source_url") or "(no url)"
             stype = r.get("source_type") or "unknown"
-            if url not in sources:
-                sources[url] = {"type": stype, "count": 0}
-            sources[url]["count"] += 1
+            key = (stype, _group_key(stype, url))
+            if key not in groups:
+                groups[key] = {"count": 0, "url": url}
+            groups[key]["count"] += 1
 
-        embed = discord.Embed(
-            title=f"{team_name} — Ingested Sources",
-            description=f"{len(sources)} source(s), {len(rows)} total chunks",
-            color=discord.Color.blurple(),
-            timestamp=discord.utils.utcnow(),
-        )
-
-        # group by type for cleaner display
-        by_type: dict[str, list[tuple[str, int]]] = {}
-        for url, info in sources.items():
-            t = info["type"]
-            by_type.setdefault(t, []).append((url, info["count"]))
+        # group by source_type
+        by_type: dict[str, list[tuple[str, int, str]]] = {}
+        for (stype, label), info in sorted(groups.items()):
+            by_type.setdefault(stype, []).append((label, info["count"], info["url"]))
 
         type_labels = {
             "github_readme": "GitHub READMEs",
@@ -54,17 +67,27 @@ class ListSources(commands.Cog):
             "website": "Website / URL",
         }
 
+        total_chunks = len(rows)
+        total_sources = len(groups)
+        embed = discord.Embed(
+            title=f"{team_name} — Ingested Sources",
+            description=f"{total_sources} source(s), {total_chunks} total chunks",
+            color=discord.Color.blurple(),
+            timestamp=discord.utils.utcnow(),
+        )
+
         for stype, entries in sorted(by_type.items()):
             label = type_labels.get(stype, stype)
-            total_chunks = sum(c for _, c in entries)
+            type_chunks = sum(c for _, c, _ in entries)
             lines = []
-            for url, count in entries[:10]:  # cap at 10 per type to avoid hitting embed limit
-                short = url if len(url) <= 60 else url[:57] + "..."
-                lines.append(f"• [{short}]({url}) — {count} chunk{'s' if count != 1 else ''}")
-            if len(entries) > 10:
-                lines.append(f"_...and {len(entries) - 10} more_")
+            for group_label, count, url in sorted(entries, key=lambda x: -x[1]):
+                line = f"• [{group_label}]({url}) — {count} chunk{'s' if count != 1 else ''}"
+                if len("\n".join(lines + [line])) > 950:
+                    lines.append(f"_...and {len(entries) - len(lines)} more_")
+                    break
+                lines.append(line)
             embed.add_field(
-                name=f"{label} ({total_chunks} chunks)",
+                name=f"{label} — {type_chunks} chunks",
                 value="\n".join(lines),
                 inline=False,
             )
