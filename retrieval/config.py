@@ -1,7 +1,7 @@
-RANKING_WEIGHTS = {"semantic": 0.55, "tag_overlap": 0.15, "support_fit": 0.10, "waterloo_affinity": 0.20}
-RANKING_WEIGHTS_PROVIDERS = {"semantic": 0.55, "tag_overlap": 0.15, "support_fit": 0.10, "waterloo_affinity": 0.20}
-# sponsors profile: waterloo affinity matters more
-RANKING_WEIGHTS_SPONSORS = {"semantic": 0.30, "tag_overlap": 0.10, "support_fit": 0.10, "waterloo_affinity": 0.50}
+# one weight set for all profiles — semantic and support-fit dominate, affinity is a tiebreaker
+RANKING_WEIGHTS = {'semantic': 0.65, 'tag_overlap': 0.1, 'support_fit': 0.2, 'waterloo_affinity': 0.05}
+
+
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
 DEFAULT_K = 10

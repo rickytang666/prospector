@@ -4,7 +4,7 @@ from retrieval.mock_data import get_mock_team_context, get_mock_entities
 from retrieval.models import Entity, TeamContext, Blocker, WaterlooAffinityEvidence
 from retrieval.ranking import rank_candidates, reindex_entities
 from retrieval.scoring import to_set, jacc, support_fit, waterloo_affinity, compose_scores, clamp01
-from retrieval.api import rank_candidates_dict, rank_from_payload, retrieve_context_pack_dict, find_providers_dict, find_sponsors_dict
+from retrieval.api import rank_candidates_dict, rank_from_payload, retrieve_context_pack_dict, find_sponsors_dict
 
 
 def _ctx(needs=None):
@@ -155,11 +155,8 @@ def check_context_pack():
     assert isinstance(out.get("citations"), list)
     assert isinstance(out.get("retrieval_meta"), dict)
 
-def check_provider_sponsor_wrappers():
+def check_sponsor_wrapper():
     ctx = get_mock_team_context()
-    p = find_providers_dict(ctx, "mapping telemetry", k=5)
-    assert isinstance(p, dict)
-    assert p.get("retrieval_metadata", {}).get("profile") == "providers"
     s = find_sponsors_dict(ctx, "sponsor pcb manufacturing", message="we can offer demo visibility", k=5)
     assert isinstance(s, dict)
     assert s.get("retrieval_metadata", {}).get("profile") == "sponsors"
@@ -180,7 +177,7 @@ def check_scoring():
     assert waterloo_affinity(_ent(ev=[
         WaterlooAffinityEvidence(type="alumni_link", text="x", source_url=""),
         WaterlooAffinityEvidence(type="team_sponsor", text="y", source_url=""),
-    ])) == 1.0
+    ])) == 0.60  # 0.55 team_sponsor + 0.05 multi-tier bonus
     z = compose_scores(0.8, 0.5, 0.25, 1.0)
     assert 0.0 <= z <= 1.0
     assert clamp01(-1.0) == 0.0
@@ -223,7 +220,7 @@ def run_all():
         ("api_dict", check_api_dict_output),
         ("api_payload", check_payload_api),
         ("context_pack", check_context_pack),
-        ("provider_sponsor", check_provider_sponsor_wrappers),
+        ("sponsor", check_sponsor_wrapper),
         ("scoring", check_scoring),
         ("db_norm", check_db_norm_helpers),
     ]

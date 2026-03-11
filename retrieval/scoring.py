@@ -36,9 +36,9 @@ def waterloo_tier_score_and_label(e: Entity):
         "waterloo_alumni_founder": (0.75, "Alumni"),
         "alumni_link": (0.75, "Alumni"),
         "startup_incubator": (0.55, "Incubator"),
-        "yc_company": (0.35, "YC"),
         "official_page": (0.35, "UW-Linked"),
     }
+
     best = 0.0
     best_label = "UW-Linked"
     seen = set()

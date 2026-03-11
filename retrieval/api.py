@@ -13,7 +13,7 @@ def rank_candidates_dict(
     query: str,
     k: int = 5,
     filters: dict[str, Any] | None = None,
-    profile: str = "providers",
+    profile: str = "sponsors",
 ):
     out = rank_candidates(team_context=team_context, query=query, k=k, filters=filters, profile=profile)
     return asdict(out)
@@ -29,27 +29,12 @@ def rank_from_payload(payload: dict[str, Any]):
         except Exception:
             k = 5
     f = payload.get("filters")
-    profile = str(payload.get("profile", "providers"))
+    profile = str(payload.get("profile", "sponsors"))
     if f is None:
         f = {}
     if not isinstance(f, dict):
         f = {}
     return rank_candidates_dict(team_context=tc, query=q, k=k, filters=f, profile=profile)
-
-
-def find_providers_dict(
-    team_context: TeamContext | dict[str, Any],
-    query: str,
-    k: int = 5,
-    filters: dict[str, Any] | None = None,
-):
-    return rank_candidates_dict(
-        team_context=team_context,
-        query=query,
-        k=k,
-        filters=filters,
-        profile="providers",
-    )
 
 
 def _support_query_enriched(team_context: TeamContext | dict[str, Any], query: str):
@@ -84,7 +69,6 @@ def find_support_dict(
         query=q2,
         k=k,
         filters=filters,
-        profile="providers",
     )
 
 
@@ -106,20 +90,6 @@ def find_sponsors_dict(
         filters=filters,
         profile="sponsors",
     )
-
-
-def find_providers_from_payload(payload: dict[str, Any]):
-    q = str(payload.get("query", ""))
-    tc = payload.get("team_context", {})
-    k = payload.get("k", 5)
-    f = payload.get("filters", {})
-    try:
-        k = int(k)
-    except Exception:
-        k = 5
-    if not isinstance(f, dict):
-        f = {}
-    return find_providers_dict(team_context=tc, query=q, k=k, filters=f)
 
 
 def find_support_from_payload(payload: dict[str, Any]):

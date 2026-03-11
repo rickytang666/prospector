@@ -11,8 +11,6 @@ from retrieval.models import (
 )
 from retrieval.config import (
     RANKING_WEIGHTS,
-    RANKING_WEIGHTS_PROVIDERS,
-    RANKING_WEIGHTS_SPONSORS,
     DEFAULT_K,
     SEMANTIC_CANDIDATE_K,
     SPONSOR_POOL_K,
@@ -26,7 +24,6 @@ from retrieval.scoring import jacc, support_fit, waterloo_affinity, clamp01, to_
 from retrieval.reasons import build_matched_reasons, build_evidence_snippets
 from retrieval.db_retrieval import fetch_candidates_from_db_with_meta, fetch_team_sponsors, fill_canonical_urls
 from retrieval.llm_ranking import llm_rerank
-
 
 def _q_terms(q: str):
     s = set()
@@ -59,13 +56,6 @@ def _compose(sem, tag, sup, wat, weights):
     )
 
 
-def _profile_weights(profile: str):
-    p = (profile or "").strip().lower()
-    if p == "sponsors":
-        return dict(RANKING_WEIGHTS_SPONSORS)
-    if p == "providers":
-        return dict(RANKING_WEIGHTS_PROVIDERS)
-    return dict(RANKING_WEIGHTS)
 
 
 def _already_sponsors_team(e: Entity, team_name: str) -> bool:
@@ -194,14 +184,14 @@ def _rank_candidates_phase1(
     query: str,
     k: int = DEFAULT_K,
     filters: dict[str, Any] | None = None,
-    profile: str = "providers",
+    profile: str = "sponsors",
 ):
     t0 = time.perf_counter()
     tc, norm_warn = _ctx_obj(team_context)
     q = (query or "").strip() or tc.context_summary or "general support"
 
     kk = max(1, min(int(k) if isinstance(k, int) else DEFAULT_K, 200))
-    weights = _profile_weights(profile)
+    weights = dict(RANKING_WEIGHTS)
     filters2 = dict(filters or {})
 
     # step 1: semantic search — pull top 100
@@ -267,13 +257,15 @@ def _rank_candidates_phase1(
     # step 5: llm rerank on top LLM_RERANK_CANDIDATE_K
     llm_input = scored[:LLM_RERANK_CANDIDATE_K]
     final = llm_rerank(llm_input, q, tc, kk)
+    # re-sort
+    final.sort(key=lambda c: -c.overall_score)
 
     # confidence from top score
     top = final[0].overall_score if final else 0.0
     conf = "high" if top >= MEDIUM_CONFIDENCE_TOP1 else ("medium" if top >= LOW_CONFIDENCE_TOP1 else "low")
     if conf == "low" and len(final) > 3:
         final = final[:3]
-
+    
     ms = (time.perf_counter() - t0) * 1000.0
     return RankedCandidateResponse(
         query_summary=q,
@@ -304,7 +296,7 @@ def rank_candidates(
     query: str,
     k: int = DEFAULT_K,
     filters: dict[str, Any] | None = None,
-    profile: str = "providers",
+    profile: str = "sponsors",
 ):
     return _rank_candidates_phase1(team_context, query, k=k, filters=filters, profile=profile)
 
