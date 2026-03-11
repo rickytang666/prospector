@@ -78,26 +78,33 @@ Return JSON: {{"contacts": ["dept name", ...]}} with exactly {len(names)} string
 
 async def generate_email(team_context: dict, organization: str, email_type: str, matched_reason: str = "") -> str:
     """Draft a cold sponsorship/outreach email. matched_reason gives company-specific context."""
-    subsystems = ", ".join(team_context.get("subsystems") or [])
-    tech = ", ".join(team_context.get("tech_stack") or [])
-    blockers = ", ".join(team_context.get("blockers") or [])
-    company_context = f"Why this company was recommended: {matched_reason}" if matched_reason else ""
+    team_name = team_context["team_name"]
+    subsystems = ", ".join((team_context.get("subsystems") or [])[:3])
+    tech = ", ".join((team_context.get("tech_stack") or [])[:3])
+    website = team_context.get("website_url") or ""
+    repo = team_context.get("repo_url") or team_context.get("repo") or ""
+    sig_link = website or repo  # prefer official website over github
+    company_context = f"Why this company fits: {matched_reason}" if matched_reason else ""
 
-    prompt = f"""Write a {email_type} email from {team_context['team_name']} to {organization}.
+    prompt = f"""Write a cold {email_type} email from the university engineering design team "{team_name}" to {organization}.
 
-Team context:
-- Subsystems: {subsystems}
-- Tech stack: {tech}
-- Current blockers: {blockers}
+Team info:
+- Team name (use exactly as written): {team_name}
+- Key subsystems: {subsystems}
+- Tech: {tech}
+{f"- Website: {sig_link}" if sig_link else ""}
 {company_context}
 
+Tone: written by a real university student — genuine and respectful, but not stiff or corporate. No buzzwords, no "I hope this email finds you well", no "leverage", no "synergy", no "ideal partner". Write like a sharp student who did their homework on {organization}, not like a PR department.
+
 Requirements:
-- Tone: professional, concise, direct
-- Length: 150-250 words
+- Length: 150-200 words
 - First line must be "Subject: <subject line>"
-- No placeholders — write a complete, sendable draft
-- {"Request sponsorship, hardware, software licenses, or monetary support" if email_type == "sponsorship" else "Propose technical collaboration or outreach"}
-- Reference specific things about {organization} if context is provided above"""
+- Do NOT mention the team's internal struggles or documentation problems
+- Pick 1-2 specific things about {organization} to reference from the context above — show you actually know what they do
+- End with one clear ask (hardware loan, software license, monetary sponsorship, etc.) and a low-friction next step ("happy to jump on a call" or similar)
+- Signature: {team_name}{f", {sig_link}" if sig_link else ""}
+- No placeholders — write a complete, sendable draft"""
 
     resp = await _get_client().chat.completions.create(
         model=_MODEL,

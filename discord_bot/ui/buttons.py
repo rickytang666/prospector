@@ -125,7 +125,7 @@ class DraftEmailButton(discord.ui.Button):
         name = candidate.get("name", "Candidate")
         super().__init__(
             label=f"Draft Email → {name[:18]}",
-            style=discord.ButtonStyle.secondary,
+            style=discord.ButtonStyle.success,
         )
         self.candidate = candidate
 
@@ -164,4 +164,5 @@ class CandidateView(discord.ui.View):
 
         for candidate in candidates[:7]:
             self.add_item(CandidateButton(candidate))
+        for candidate in candidates[:7]:
             self.add_item(DraftEmailButton(candidate))

@@ -189,10 +189,12 @@ async def get_team_context_for_user(guild_id: str, user_id: str) -> dict | None:
             repo_url = t.get("repo_url") or ""
             break
     blockers = stored.get("blockers") or []
+    website_url = await get_team_website_url(team_name)
     return {
         "team_name": team_name,
         "repo": repo_url,
         "repo_url": repo_url,
+        "website_url": website_url,
         "subsystems": stored.get("focus_areas") or [],
         "tech_stack": stored.get("tech_stack") or [],
         "blockers": blockers,
@@ -200,6 +202,15 @@ async def get_team_context_for_user(guild_id: str, user_id: str) -> dict | None:
         "inferred_support_needs": stored.get("needs") or [],
         "context_summary": stored.get("raw_llm_output") or "",
     }
+
+
+async def get_team_website_url(team_name: str) -> str:
+    """grab the first website chunk's source_url as the team's official site"""
+    def _run():
+        c = _get_client()
+        res = c.table("chunks").select("source_url").eq("team_name", team_name).eq("source_type", "website").limit(1).execute()
+        return res.data[0]["source_url"] if res.data and res.data[0].get("source_url") else ""
+    return await asyncio.to_thread(_run)
 
 
 # ---- remove_from_memory: find chunks by query (keyword match) and delete ----
