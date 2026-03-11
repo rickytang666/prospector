@@ -67,6 +67,16 @@ def _profile_weights(profile: str):
     return dict(RANKING_WEIGHTS)
 
 
+def _already_sponsors_team(e: Entity, team_name: str) -> bool:
+    """true if this entity is already a known sponsor of the querying team.
+    checks affinity evidence text for the team name — data-driven, no hardcoding."""
+    team_lower = team_name.strip().lower()
+    for ev in (e.waterloo_affinity_evidence or []):
+        if team_lower in (ev.text or "").lower():
+            return True
+    return False
+
+
 def _entity_ok(e: Entity, filters: dict[str, Any] | None):
     if not filters:
         return True
