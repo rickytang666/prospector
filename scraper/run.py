@@ -137,15 +137,26 @@ def run_embeddings_only(limit: int | None = None) -> dict:
     if not sb:
         return {"embedded": 0, "skipped": 0, "failed": 0, "error": "no supabase creds"}
 
-    # All entities (id, name, summary, tags, support_types)
-    r = sb.table("entities").select("id, name, summary, tags, support_types").execute()
-    rows = (r.data or []) if hasattr(r, "data") else []
+    def _fetch_all(table, columns):
+        """paginate through supabase (default cap is 1000 rows)."""
+        results = []
+        page_size = 1000
+        offset = 0
+        while True:
+            r = sb.table(table).select(columns).range(offset, offset + page_size - 1).execute()
+            batch = (r.data or []) if hasattr(r, "data") else []
+            results.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+        return results
+
+    rows = _fetch_all("entities", "id, name, summary, tags, support_types")
     if limit:
         rows = rows[:limit]
+    print(f"fetched {len(rows)} entities from supabase")
 
-    # Entity IDs that already have an embedding
-    er = sb.table("entity_embeddings").select("entity_id").execute()
-    existing = {str(x["entity_id"]) for x in (er.data or []) if x.get("entity_id")}
+    existing = {str(x["entity_id"]) for x in _fetch_all("entity_embeddings", "entity_id") if x.get("entity_id")}
 
     embedded = 0
     failed = 0

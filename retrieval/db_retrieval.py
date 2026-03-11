@@ -4,7 +4,7 @@ from typing import Any
 import json
 
 from retrieval.models import Entity, TeamContext, WaterlooAffinityEvidence
-from retrieval.supabase_client import fetch_semantic_candidates_from_rpc
+from retrieval.supabase_client import fetch_semantic_candidates_from_rpc, get_supabase_client
 
 
 def _parse_json_maybe(v: Any):
@@ -147,6 +147,58 @@ def _row_to_entity(row: dict[str, Any]):
         )
     )
     return ent, sem
+
+
+def fetch_team_sponsors(limit: int = 50) -> list[tuple[Entity, float]]:
+    """direct db pull for entities with team_sponsor affinity — guaranteed sponsor pool.
+    returns (entity, sem=0.0) so they go through the same scoring pipeline."""
+    try:
+        cl = get_supabase_client()
+
+        # get entity ids that have team_sponsor evidence
+        r = cl.table("affinity_evidence").select("entity_id").eq("type", "team_sponsor").execute()
+        ids = list({row["entity_id"] for row in (r.data or []) if row.get("entity_id")})
+        if not ids:
+            return []
+        ids = ids[:limit]
+
+        # fetch entity data in batches
+        entity_rows = []
+        for i in range(0, len(ids), 100):
+            batch = ids[i:i + 100]
+            r2 = cl.table("entities").select("id, name, entity_type, summary, tags, support_types").in_("id", batch).execute()
+            entity_rows.extend(r2.data or [])
+
+        # fetch their affinity evidence
+        aff_by_eid: dict[str, list] = {}
+        for i in range(0, len(ids), 100):
+            batch = ids[i:i + 100]
+            r3 = cl.table("affinity_evidence").select("entity_id, type, text, source_url").in_("entity_id", batch).execute()
+            for arow in (r3.data or []):
+                eid = arow.get("entity_id", "")
+                aff_by_eid.setdefault(eid, []).append(arow)
+
+        out = []
+        for row in entity_rows:
+            eid = str(row.get("id") or "")
+            nm = str(row.get("name") or "")
+            if not eid or not nm:
+                continue
+            ent = Entity(
+                entity_id=eid,
+                name=nm,
+                entity_type=str(row.get("entity_type") or "provider"),
+                summary=str(row.get("summary") or ""),
+                tags=_to_str_list(row.get("tags")),
+                support_types=_to_str_list(row.get("support_types")),
+                waterloo_affinity_evidence=_norm_affinity(aff_by_eid.get(eid, [])),
+            )
+            out.append((ent, 0.0))  # sem=0.0, gets boosted by waterloo_affinity weight
+
+        return out
+    except Exception as e:
+        print(f"fetch_team_sponsors failed: {e}")
+        return []
 
 
 def fetch_candidates_from_db(

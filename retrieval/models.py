@@ -51,6 +51,7 @@ class RankedCandidate:
     matched_reasons: list[str]
     evidence_snippets: list[str]
     support_types: list[str]
+    tags: list[str] = field(default_factory=list)
     waterloo_affinity_evidence: list[WaterlooAffinityEvidence] = field(default_factory=list)
 
 @dataclass(slots=True)

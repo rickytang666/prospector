@@ -6,7 +6,6 @@ from typing import Any
 from retrieval.ranking import rank_candidates
 from retrieval.models import TeamContext
 from retrieval.context_pack import retrieve_context_pack
-from retrieval.llm_ranking import llm_rank_candidates_dict
 
 
 def rank_candidates_dict(
@@ -16,13 +15,8 @@ def rank_candidates_dict(
     filters: dict[str, Any] | None = None,
     profile: str = "providers",
 ):
-    # Use the new LLM RAG bypass
-    try:
-        return llm_rank_candidates_dict(team_context=team_context, query=query, k=k, filters=filters, profile=profile)
-    except Exception as e:
-        print(f"Fallback to classic RAG: {e}")
-        out = rank_candidates(team_context=team_context, query=query, k=k, filters=filters, profile=profile)
-        return asdict(out)
+    out = rank_candidates(team_context=team_context, query=query, k=k, filters=filters, profile=profile)
+    return asdict(out)
 
 
 def rank_from_payload(payload: dict[str, Any]):

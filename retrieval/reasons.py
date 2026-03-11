@@ -8,19 +8,37 @@ def build_matched_reasons(
     overlap_tags: list[str],
     support_hits: list[str],
     waterloo_note: str | None,
-):
+) -> list[str]:
     r = []
-    if sb.semantic_score >= 0.60:
-        r.append("Strong semantic relevance to your current need.")
-    elif sb.semantic_score >= 0.45:
-        r.append("Moderate semantic relevance to your current need.")
+
+    if waterloo_note:
+        r.append(waterloo_note)
+    elif sb.waterloo_affinity_score >= 0.9:
+        r.append("Confirmed Waterloo design team sponsor.")
+    elif sb.waterloo_affinity_score >= 0.5:
+        r.append("Has known ties to the University of Waterloo.")
+
+    if support_hits:
+        r.append(f"Offers {', '.join(support_hits[:3])} — matches your team's stated needs.")
+
+    if overlap_tags:
+        r.append(f"Relevant expertise in: {', '.join(overlap_tags[:4])}.")
+
     if not r:
-        r = ["Semantic match from available context."]
-    return r[:1]
+        if sb.semantic_score >= 0.60:
+            r.append("Strong semantic match to your query.")
+        elif sb.semantic_score >= 0.40:
+            r.append("Moderate match based on company profile.")
+        else:
+            r.append("Potential match based on available signals.")
+
+    return r[:2]
 
 
-def build_evidence_snippets(entity: Entity, overlap_tags: list[str], support_hits: list[str]):
-    z = [f"{entity.summary} (from entity summary)"]
+def build_evidence_snippets(entity: Entity, overlap_tags: list[str], support_hits: list[str]) -> list[str]:
+    z = []
+    if entity.summary:
+        z.append(f"{entity.summary} (from entity summary)")
     if overlap_tags:
         z.append("Matched tags: " + ", ".join(overlap_tags[:5]) + " (from tags)")
     if support_hits:
