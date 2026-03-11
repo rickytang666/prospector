@@ -1,24 +1,17 @@
+import os
 import discord
-from google import genai
+from openai import AsyncOpenAI
 from discord import app_commands
 from discord.ext import commands
 
-from discord_bot.config import GEMINI_API_KEY
 from discord_bot.ui.buttons import EmailView
 from discord_bot.ui.embeds import email_draft_embed
 
-_client = None
-
-def _get_client():
-    global _client
-    if _client is None:
-        _client = genai.Client(api_key=GEMINI_API_KEY)
-    return _client
-
 
 async def _generate_email(team_context: dict, organization: str, email_type: str, subject_line: str) -> str:
-    prompt = f"""
-Write a professional {email_type} email from {team_context['team_name']} to {organization}.
+    key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
+    prompt = f"""Write a professional {email_type} email from {team_context['team_name']} to {organization}.
 
 Subject: {subject_line}
 
@@ -32,12 +25,13 @@ Requirements:
 - Length: 150-250 words
 - Start with "Subject: ..." on the first line
 - No placeholders — write a complete, sendable draft
-- {"Request sponsorship or resources" if email_type == "sponsorship" else "Propose collaboration or outreach"}
-"""
-    response = await _get_client().aio.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt
+- {"Request sponsorship or resources" if email_type == "sponsorship" else "Propose collaboration or outreach"}"""
+    resp = await client.chat.completions.create(
+        model="google/gemini-2.5-flash-lite",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=600,
     )
-    return response.text
+    return (resp.choices[0].message.content or "").strip()
 
 
 class SampleEmail(commands.Cog):
