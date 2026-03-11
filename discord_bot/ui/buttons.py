@@ -43,11 +43,48 @@ class EditEmailButton(discord.ui.Button):
         await interaction.response.send_modal(EditEmailModal(self.draft, self.bot))
 
 
+class SendEmailModal(discord.ui.Modal, title="Send Email"):
+    to_email = discord.ui.TextInput(
+        label="Recipient email address",
+        placeholder="sponsorship@company.com",
+        max_length=200,
+    )
+
+    def __init__(self, draft: str, bot: commands.Bot):
+        super().__init__()
+        self.draft = draft
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        from discord_bot.mailer import send_email as _send_email
+        from discord_bot.ui.embeds import email_sent_embed, _parse_subject_body
+        await interaction.response.defer(ephemeral=True)
+        subject, body = _parse_subject_body(self.draft)
+        try:
+            await _send_email(str(self.to_email), subject, body)
+        except Exception as e:
+            await interaction.followup.send(f"Failed to send: {e}", ephemeral=True)
+            return
+        embed = email_sent_embed(str(self.to_email), self.draft)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+class SendEmailButton(discord.ui.Button):
+    def __init__(self, draft: str, bot: commands.Bot):
+        super().__init__(label="Send", style=discord.ButtonStyle.success)
+        self.draft = draft
+        self.bot = bot
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(SendEmailModal(self.draft, self.bot))
+
+
 class EmailView(discord.ui.View):
     def __init__(self, draft: str, bot: commands.Bot):
         super().__init__(timeout=300)
         self.add_item(EditEmailButton(draft, bot))
         self.add_item(CopyButton(draft))
+        self.add_item(SendEmailButton(draft, bot))
 
 
 class CandidateButton(discord.ui.Button):
