@@ -22,8 +22,8 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root))
 
-from retrieval.envload import load_project_env
-load_project_env()
+from dotenv import load_dotenv
+load_dotenv()
 
 from retrieval.ranking import rank_candidates
 from retrieval.models import TeamContext, Blocker

@@ -5,7 +5,6 @@ or run standalone: python -m scraper.run
 """
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
-from rate_limit import limiter
 from pathlib import Path
 import json
 import os
@@ -288,7 +287,6 @@ class CleanupParams(BaseModel):
 
 # clean up
 @router.post("/cleanup")
-@limiter.limit("10/minute")
 def cleanup(
     request: Request,
     params: CleanupParams = CleanupParams(),
@@ -311,7 +309,6 @@ class RunParams(BaseModel):
 
 
 @router.post("/run")
-@limiter.limit("10/minute")
 def run_pipeline(
     request: Request,
     params: RunParams = RunParams(),

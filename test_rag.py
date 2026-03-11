@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from retrieval.api import find_support_dict as find_sponsors_dict
+from retrieval.api import find_sponsors_dict
 
 # edit this to match the team you want to test with
 TEAM_CONTEXT = {
