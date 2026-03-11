@@ -53,7 +53,7 @@ def llm_rerank(
     subsystems = ", ".join(tc.subsystems[:5]) if tc.subsystems else ""
     needs = ", ".join(tc.inferred_support_needs[:5]) if tc.inferred_support_needs else ""
 
-    prompt = f"""You match engineering design teams with companies for sponsorship or support.
+    prompt = f"""You match engineering design teams with companies for sponsorship or technical support.
 
 Team: {tc.team_name}
 Query: {query}
@@ -64,17 +64,20 @@ Support needs: {needs}
 Candidates (pre-ranked by math score, pick the best {k}):
 {chr(10).join(lines)}
 
-Pick the best {k} companies for this team. Return JSON only:
+Pick the best {k} companies. Rules:
+- Only include companies whose domain is genuinely relevant to the query — if the query is about drones/hardware/aerospace, do NOT include software-only companies like GitHub, Slack, Notion, etc.
+- Be specific in reasons — mention the team's actual technical needs, not generic praise.
+- Return JSON only:
 {{"picks": [{{"idx": 0, "reason": "one specific sentence why this company fits this team's needs"}}]}}
 
-Order by best match first. idx must be from the list above. Be specific — mention the team's actual needs."""
+Order by best match first. idx must be from the list above."""
 
     try:
         resp = client.chat.completions.create(
             model=LLM_RERANK_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            max_tokens=500,
+            max_tokens=1000,
         )
         raw = json.loads(resp.choices[0].message.content)
         picks = raw.get("picks", [])

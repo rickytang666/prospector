@@ -20,6 +20,7 @@ from retrieval.config import (
     LOW_CONFIDENCE_TOP1,
     MEDIUM_CONFIDENCE_TOP1,
     MIN_RESULT_SCORE,
+    MIN_SEMANTIC_SCORE,
 )
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, clamp01, to_set
 from retrieval.reasons import build_matched_reasons, build_evidence_snippets
@@ -248,6 +249,9 @@ def _rank_candidates_phase1(
         if e.name.strip().lower() == team_lower:
             continue
         if _already_sponsors_team(e, tc.team_name):
+            continue
+        # hard semantic floor — high affinity can't rescue a semantically irrelevant company
+        if sem < MIN_SEMANTIC_SCORE:
             continue
         scored.append(_score_entity(e, sem, weights, ctx_tags, q_tags, tc))
 

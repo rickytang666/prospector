@@ -17,3 +17,4 @@ SUPABASE_RPC_MATCH_CHUNKS_FN = "match_internal_chunks_for_team"
 LOW_CONFIDENCE_TOP1 = 0.28
 MEDIUM_CONFIDENCE_TOP1 = 0.40
 MIN_RESULT_SCORE = 0.12
+MIN_SEMANTIC_SCORE = 0.28  # entities below this are semantically irrelevant regardless of affinity
