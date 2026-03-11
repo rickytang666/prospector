@@ -28,11 +28,16 @@ class FindSponsors(commands.Cog):
             await interaction.followup.send("Run `/configure-team add` first (use `/my-team` to see teams).", ephemeral=True)
             return
 
-        result = await asyncio.to_thread(find_support_dict, team_context=team_context, query=query, k=5)
+        result = await asyncio.to_thread(find_support_dict, team_context=team_context, query=query, k=7)
         candidates = result["candidates"]
         retrieval_metadata = result.get("retrieval_metadata") or {}
-        contact_infos = await get_contact_infos(candidates[:5])
-        embed = candidates_embed(candidates, query, retrieval_metadata, title="Top Sponsor Matches", max_items=5, contact_infos=contact_infos)
+
+        # cache for explain-match and draft-email buttons
+        cache_key = (guild_id, user_id)
+        interaction.client.sponsor_search_cache[cache_key] = candidates
+
+        contact_infos = await get_contact_infos(candidates[:7])
+        embed = candidates_embed(candidates, query, retrieval_metadata, title="Top Sponsor Matches", max_items=7, contact_infos=contact_infos)
         view = CandidateView(candidates)
         await interaction.followup.send(embed=embed, view=view)
 

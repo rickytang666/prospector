@@ -41,6 +41,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, tree_cls=BotTree)
 bot.team_configs = {}
 bot.team_context_cache = {}
 bot.email_draft_cache = {}
+bot.sponsor_search_cache = {}  # (guild_id, user_id) -> list of candidate dicts
 bot.chat_threads = set()
 bot.synced = False
 
