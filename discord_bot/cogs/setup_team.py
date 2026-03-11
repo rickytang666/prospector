@@ -75,8 +75,26 @@ class SetupTeam(commands.Cog):
                 chunks.extend(website_chunks)
                 print(f"[setup_team] {len(website_chunks)} chunks from website")
 
-            github_chunks = await asyncio.to_thread(scrape_github, repo, team_name)
+            # github can take 2-3 min for large orgs — send periodic updates so users know it's alive
+            async def _github_progress():
+                msgs = [
+                    "Scraping GitHub repos... (this can take a few minutes for large orgs)",
+                    "Still scraping — reading READMEs and open issues...",
+                    "Almost done with GitHub...",
+                ]
+                for msg in msgs:
+                    await asyncio.sleep(20)
+                    await interaction.followup.send(msg)
+
+            scrape_task = asyncio.create_task(asyncio.to_thread(scrape_github, repo, team_name))
+            ticker = asyncio.create_task(_github_progress())
+            try:
+                github_chunks = await scrape_task
+            finally:
+                ticker.cancel()
+
             chunks.extend(github_chunks)
+            await interaction.followup.send(f"GitHub: {len(github_chunks)} chunks indexed across all repos.")
             print(f"[setup_team] {len(github_chunks)} chunks from github")
 
             if notion_url:
@@ -106,10 +124,12 @@ class SetupTeam(commands.Cog):
 
                 new_chunks = [c for c in chunks if c.content_hash not in existing]
                 if new_chunks:
+                    await interaction.followup.send(f"Embedding {len(new_chunks)} new chunks...")
                     new_chunks = await asyncio.to_thread(embed_chunks, new_chunks)
                     await db.insert_chunks(new_chunks)
                 print(f"[setup_team] inserted {len(new_chunks)}, skipped {len(chunks) - len(new_chunks)} unchanged")
 
+                await interaction.followup.send("Extracting team context (blockers, tech stack, needs)...")
                 ctx = await asyncio.to_thread(extract_team_context, team_name, chunks)
                 await db.upsert_team_context(ctx)
                 print(f"[setup_team] context upserted for {team_name}")
