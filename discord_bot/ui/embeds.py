@@ -159,46 +159,19 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
 def explanation_embed(data, team_name=None):
     embed = discord.Embed(
         title=data["entity_name"],
-        description=f"Match analysis for **{team_name}**" if team_name else None,
         color=discord.Color.green(),
-        timestamp=discord.utils.utcnow()
+        timestamp=discord.utils.utcnow(),
     )
 
-    embed.add_field(
-        name="Why it helps",
-        value="\n".join(f"> {r}" for r in data["why_it_helps"]),
-        inline=False
-    )
+    reason = (data.get("reason") or "").strip()
+    if reason:
+        embed.add_field(name="Why", value=reason, inline=False)
 
-    embed.add_field(
-        name="Why they may care",
-        value="\n".join(f"> {r}" for r in data["why_they_may_care"]),
-        inline=False
-    )
-
-    ask = data["recommended_ask"]
-    ask_preview = ask if len(ask) <= 900 else ask[:897] + "..."
-    embed.add_field(
-        name="Recommended ask",
-        value=f"```{ask_preview}```",
-        inline=False
-    )
-
-    contact_person = data.get("contact_person", "")
-    contact_email = data.get("contact_email", "")
-    website = data.get("website", "")
-    if contact_person or contact_email or website:
-        lines = []
-        if contact_person:
-            lines.append(f"Contact: {contact_person}")
-        if contact_email:
-            lines.append(f"Email: {contact_email}")
-        if website:
-            lines.append(f"Website: {website}")
-        embed.add_field(name="How to reach them", value="\n".join(lines), inline=False)
+    tags = [t for t in (data.get("tags") or []) if t]
+    if tags:
+        embed.add_field(name="Tags", value=" ".join(f"`{t}`" for t in tags[:12]), inline=False)
 
     return embed
-
 
 def recruit_gap_embed(gaps, team_name):
     embed = discord.Embed(

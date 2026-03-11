@@ -61,18 +61,22 @@ class CandidateButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         c = self.candidate
-        support_types = c.get("support_types") or []
+        reasons = c.get("matched_reasons") or []
         explanation = {
             "entity_name": c.get("name", c.get("entity_id", "Candidate")),
-            "why_it_helps": c.get("matched_reasons") or ["No reasons available."],
-            "why_they_may_care": c.get("evidence_snippets") or ["No evidence available."],
-            "recommended_ask": support_types[0] if support_types else "Reach out to explore collaboration.",
+            "reason": reasons[0] if reasons else "",
+            "tags": c.get("tags") or [],
+            "contact_person": "",
+            "contact_email": "",
+            "contact_email_verified": False,
+            "website": c.get("canonical_url", ""),
         }
         key = (str(interaction.guild_id), str(interaction.user.id))
         team_context = getattr(interaction.client, "team_context_cache", {}).get(key)
         team_name = team_context["team_name"] if team_context else None
         embed = explanation_embed(explanation, team_name=team_name)
         await interaction.response.send_message(embed=embed)
+
 
 
 class CandidateView(discord.ui.View):

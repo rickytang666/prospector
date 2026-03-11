@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from retrieval.models import RankedCandidate, TeamContext
 from retrieval.config import LLM_RERANK_MODEL
 
@@ -15,7 +16,36 @@ def _get_client():
         return None
 
 
+def _parse_json_safe(text: str) -> dict:
+    """Robustly parse LLM JSON output that may be wrapped in markdown fences,
+    truncated, or contain unescaped control characters."""
+    # strip markdown code fences: ```json ... ``` or ``` ... ```
+    text = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text.strip())
+    text = text.strip()
+
+    # try direct parse first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # fallback: extract first {...} block (handles leading/trailing prose)
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if m:
+        blob = m.group(0)
+        # sanitize bare control chars (newlines inside strings → space)
+        blob = re.sub(r'(?<!\\)[\x00-\x1f]', " ", blob)
+        try:
+            return json.loads(blob)
+        except json.JSONDecodeError:
+            pass
+
+    return {}
+
+
 def llm_rerank(
+
     candidates: list[RankedCandidate],
     query: str,
     tc: TeamContext,
@@ -66,21 +96,28 @@ Candidates (pre-ranked by math score, pick the best {k}):
 
 Pick the best {k} companies. Rules:
 - Only include companies whose domain is genuinely relevant to the query — if the query is about drones/hardware/aerospace, do NOT include software-only companies like GitHub, Slack, Notion, etc.
-- Be specific in reasons — mention the team's actual technical needs, not generic praise.
+- Write 2-4 sentences per company. Name specific products, programs, or capabilities. No filler.
+- Banned phrases: "extensive experience", "coupled with", "makes them a", "valuable", "potential", "strong fit", "offers a", "well-positioned".
+- Good: "Skydio makes autonomous inspection drones used in infrastructure and public safety. They run a university hardware program that loans drones to student teams. Their SDK supports custom autonomy stacks."
+- Bad: "Skydio's extensive experience in autonomous systems makes them a strong fit for your drone needs."
+- IMPORTANT: reason is a single JSON string — no newlines inside it, sentences separated by spaces only.
 - Return JSON only:
-{{"picks": [{{"idx": 0, "reason": "one specific sentence why this company fits this team's needs"}}]}}
+{{"picks": [{{"idx": 0, "reason": "2-4 sentences as one string"}}]}}
 
 Order by best match first. idx must be from the list above."""
+
 
     try:
         resp = client.chat.completions.create(
             model=LLM_RERANK_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            max_tokens=1000,
+            max_tokens=1500,
         )
-        raw = json.loads(resp.choices[0].message.content)
+        content = resp.choices[0].message.content or ""
+        raw = _parse_json_safe(content)
         picks = raw.get("picks", [])
+
 
         out = []
         seen: set[int] = set()

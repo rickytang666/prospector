@@ -29,7 +29,7 @@ _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 _SKIP_LOCALS = {"noreply", "no-reply", "donotreply", "support", "newsletter",
                 "unsubscribe", "abuse", "postmaster", "privacy", "legal", "press"}
 
-_CONTACT_PATHS = ["/contact", "/contact-us", "/about", "/about-us", "/company/contact"]
+_CONTACT_PATHS = ["/contact", "/contact-us", "/about"]
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; enghacks-bot/1.0)"}
 
@@ -45,7 +45,7 @@ def _extract_domain(url: str) -> str | None:
 
 def _scrape_emails(url: str) -> list[str]:
     try:
-        r = httpx.get(url, timeout=8, follow_redirects=True, headers=_HEADERS)
+        r = httpx.get(url, timeout=3, follow_redirects=True, headers=_HEADERS)
         if r.status_code != 200:
             return []
         emails = _EMAIL_RE.findall(r.text)
@@ -66,7 +66,7 @@ def _scrape_emails(url: str) -> list[str]:
 def _check_mx(domain: str) -> bool:
     try:
         import dns.resolver
-        dns.resolver.resolve(domain, "MX", lifetime=5)
+        dns.resolver.resolve(domain, "MX", lifetime=2)
         return True
     except Exception:
         return False
