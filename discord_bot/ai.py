@@ -1,6 +1,8 @@
+import asyncio
 import json
 import os
 from openai import AsyncOpenAI
+from discord_bot.email_finder import find_email
 
 _client = None
 
@@ -57,11 +59,17 @@ Return JSON: {{"contacts": ["dept name", ...]}} with exactly {len(names)} string
         print(f"[ai] get_contact_infos failed: {e}")
         contact_persons = [""] * len(entries)
 
+    # find emails concurrently — scrape contact pages + mx-validated prefix fallback
+    email_results = await asyncio.gather(
+        *[asyncio.to_thread(find_email, e["website"]) for e in entries]
+    )
+
     return [
         {
             "name": e["name"],
             "contact_person": contact_persons[i] if i < len(contact_persons) else "",
-            "contact_email": "",  # don't guess — hallucinated emails are worse than none
+            "contact_email": email_results[i][0],
+            "contact_email_verified": email_results[i][1],  # true = found on site, false = suggested
             "website": e["website"],
         }
         for i, e in enumerate(entries)

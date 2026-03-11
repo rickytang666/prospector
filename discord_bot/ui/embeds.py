@@ -136,9 +136,11 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
             if contact.get("contact_person"):
                 bits.append(f"Contact: {contact['contact_person']}")
             if contact.get("contact_email"):
-                bits.append(contact["contact_email"])
+                email = contact["contact_email"]
+                verified = contact.get("contact_email_verified", False)
+                bits.append(email if verified else f"{email} *(suggested)*")
             if contact.get("website"):
-                bits.append(contact["website"])
+                bits.append(f"[website]({contact['website']})")
             contact_line = " • ".join(bits)
         if not contact_line:
             contact_line = _extract_contact_line(c) or ""

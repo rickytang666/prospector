@@ -11,3 +11,4 @@ lxml
 pydantic
 python-dotenv
 notion-client
+dnspython
