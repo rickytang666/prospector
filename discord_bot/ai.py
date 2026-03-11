@@ -12,48 +12,57 @@ def _get_client():
 
 
 async def get_contact_infos(candidates: list[dict]) -> list[dict]:
-    """Batch Gemini call — returns contact info for each candidate in the same order.
-    Each entry: {name, contact_person, contact_email, website}
-    Capped at 10 to keep prompts manageable.
+    """returns contact info for each candidate.
+    website comes from canonical_url in the DB (reliable).
+    contact_person is the only thing we ask the llm — just a department/role hint, not an email.
+    we skip email entirely to avoid hallucinated addresses.
     """
     if not candidates:
         return []
 
     candidates = candidates[:10]
-    names = [c.get("name", "Unknown") for c in candidates]
-    prompt = f"""For each organization below, provide realistic contact information for a university engineering team seeking sponsorship or technical support.
 
-Organizations: {json.dumps(names)}
+    # build entries using known data first
+    entries = []
+    for c in candidates:
+        # canonical_url is stored in the DB, use it directly
+        website = c.get("canonical_url") or c.get("website") or ""
+        entries.append({"name": c.get("name", "Unknown"), "website": website})
 
-Return a JSON array with exactly {len(names)} objects in the same order:
-[
-  {{
-    "name": "...",
-    "contact_person": "Job title or team name (e.g. 'Developer Relations Team', 'University Partnerships')",
-    "contact_email": "Most likely contact email (e.g. 'university@company.com', 'sponsors@company.com')",
-    "website": "Most relevant URL for university/student programs or partnerships"
-  }}
-]
+    # only ask llm for contact department (this it can reasonably infer)
+    names = [e["name"] for e in entries]
+    prompt = f"""For each company below, name the most relevant team or department a university engineering design team should contact for sponsorship or technical support.
+Keep it short — a job title or team name only (e.g. "University Partnerships", "Developer Relations", "Sponsorship Team").
 
-Return only valid JSON, no explanation."""
+Companies: {json.dumps(names)}
 
-    response = await _get_client().aio.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt
-    )
+Return a JSON array with exactly {len(names)} strings in the same order. Return only valid JSON, no explanation."""
 
     try:
+        response = await _get_client().aio.models.generate_content(
+            model="gemini-2.0-flash", contents=prompt
+        )
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("```", 2)[1]
             if text.startswith("json"):
                 text = text[4:]
-        return json.loads(text)
+        contact_persons = json.loads(text)
+        if not isinstance(contact_persons, list):
+            contact_persons = [""] * len(entries)
     except Exception as e:
-        print(f"[ai] failed to parse contact infos: {e}")
-        return [
-            {"name": c.get("name", ""), "contact_person": "", "contact_email": "", "website": ""}
-            for c in candidates
-        ]
+        print(f"[ai] get_contact_infos failed: {e}")
+        contact_persons = [""] * len(entries)
+
+    return [
+        {
+            "name": e["name"],
+            "contact_person": contact_persons[i] if i < len(contact_persons) else "",
+            "contact_email": "",  # don't guess — hallucinated emails are worse than none
+            "website": e["website"],
+        }
+        for i, e in enumerate(entries)
+    ]
 
 
 async def expand_recommended_ask(ask: str, entity_name: str, team_name: str) -> str:
