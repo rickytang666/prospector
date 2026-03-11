@@ -38,7 +38,7 @@ def _get_context_pack(team_context, query):
         team_context=team_context,
         query=query,
         k_entities=5,
-        k_chunks=5,
+        k_chunks=8,
     )
 
 
