@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from discord_bot.ai import generate_email
+from discord_bot.services.ai import generate_email
 from discord_bot.ui.buttons import EmailView
 from discord_bot.ui.embeds import email_draft_embed
 

@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord_bot.ui.embeds import explanation_embed
-from discord_bot.ai import get_contact_infos
+from discord_bot.services.ai import get_contact_infos
 
 
 def _find_in_cache(candidates: list, name: str) -> dict | None:

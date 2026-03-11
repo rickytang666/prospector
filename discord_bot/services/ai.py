@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 from openai import AsyncOpenAI
-from discord_bot.email_finder import find_email
+from discord_bot.services.email_finder import find_email
 
 _client = None
 

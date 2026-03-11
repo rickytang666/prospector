@@ -56,7 +56,7 @@ class SendEmailModal(discord.ui.Modal, title="Send Email"):
         self.bot = bot
 
     async def on_submit(self, interaction: discord.Interaction):
-        from discord_bot.mailer import send_email as _send_email
+        from discord_bot.services.mailer import send_email as _send_email
         from discord_bot.ui.embeds import email_sent_embed, _parse_subject_body
         await interaction.response.defer(ephemeral=True)
         subject, body = _parse_subject_body(self.draft)
@@ -131,7 +131,7 @@ class DraftEmailButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        from discord_bot.ai import generate_email
+        from discord_bot.services.ai import generate_email
         from discord_bot.ui.embeds import email_draft_embed
 
         key = (str(interaction.guild_id), str(interaction.user.id))

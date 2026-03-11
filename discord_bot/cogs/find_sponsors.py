@@ -5,7 +5,7 @@ from discord import app_commands
 from retrieval.api import find_support_dict
 from discord_bot.ui.embeds import candidates_embed
 from discord_bot.ui.buttons import CandidateView
-from discord_bot.ai import get_contact_infos
+from discord_bot.services.ai import get_contact_infos
 
 
 class FindSponsors(commands.Cog):

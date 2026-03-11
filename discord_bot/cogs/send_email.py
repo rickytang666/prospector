@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from discord_bot.mailer import send_email as _send_email
+from discord_bot.services.mailer import send_email as _send_email
 from discord_bot.ui.buttons import CopyButton
 from discord_bot.ui.embeds import email_sent_embed, _parse_subject_body
 
