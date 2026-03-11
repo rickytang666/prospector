@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from retrieval.api import find_providers_dict
+from retrieval.api import find_support_dict as find_sponsors_dict
 
 # edit this to match the team you want to test with
 TEAM_CONTEXT = {
@@ -32,7 +32,7 @@ query = sys.argv[1] if len(sys.argv) > 1 else "We need RF and embedded systems s
 print(f"query: {query}")
 print(f"team:  {TEAM_CONTEXT['team_name']}\n")
 
-result = find_providers_dict(team_context=TEAM_CONTEXT, query=query, k=10)
+result = find_sponsors_dict(team_context=TEAM_CONTEXT, query=query, k=10)
 
 candidates = result.get("candidates", [])
 if not candidates:

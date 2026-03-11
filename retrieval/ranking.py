@@ -24,7 +24,7 @@ from retrieval.config import (
 )
 from retrieval.scoring import jacc, support_fit, waterloo_affinity, clamp01, to_set
 from retrieval.reasons import build_matched_reasons, build_evidence_snippets
-from retrieval.db_retrieval import fetch_candidates_from_db_with_meta, fetch_team_sponsors
+from retrieval.db_retrieval import fetch_candidates_from_db_with_meta, fetch_team_sponsors, fill_canonical_urls
 from retrieval.llm_ranking import llm_rerank
 
 
@@ -183,6 +183,7 @@ def _score_entity(e: Entity, sem: float, weights: dict, ctx_tags: set, q_tags: s
         matched_reasons=reasons,
         evidence_snippets=build_evidence_snippets(e, ov, suphits),
         support_types=e.support_types,
+        canonical_url=e.canonical_url,
         tags=e.tags,
         waterloo_affinity_evidence=e.waterloo_affinity_evidence,
     )
@@ -208,6 +209,8 @@ def _rank_candidates_phase1(
     db_status = m.get("status", "db_error")
     db_err = m.get("error")
     semantic_raw = m.get("candidates") or []
+    if semantic_raw:
+        fill_canonical_urls(semantic_raw)
 
     # step 2: guaranteed sponsor pool — design team sponsors regardless of semantic score
     sponsor_raw = fetch_team_sponsors(limit=SPONSOR_POOL_K)

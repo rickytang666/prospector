@@ -127,6 +127,7 @@ def _row_to_entity(row: dict[str, Any]):
     nm = str(row.get("name") or row.get("entity_name") or row.get("entityName") or "")
     et = _norm_entity_type(row.get("entity_type") or row.get("entityType") or row.get("type"))
     sm = str(row.get("summary") or row.get("description") or row.get("entity_summary") or "")
+    cu = str(row.get("canonical_url") or row.get("url") or "")
     tg = _to_str_list(row.get("tags") or row.get("entity_tags"))
     st = _to_str_list(row.get("support_types") or row.get("supports") or row.get("support"))
     wa = _norm_affinity(row.get("waterloo_affinity_evidence") or row.get("waterloo_affinity") or row.get("affinity_evidence"))
@@ -136,6 +137,7 @@ def _row_to_entity(row: dict[str, Any]):
         name=nm,
         entity_type=et,
         summary=sm,
+        canonical_url=cu,
         tags=tg,
         support_types=st,
         waterloo_affinity_evidence=wa,
@@ -147,6 +149,27 @@ def _row_to_entity(row: dict[str, Any]):
         )
     )
     return ent, sem
+
+
+def fill_canonical_urls(pairs: list[tuple[Entity, float]]) -> list[tuple[Entity, float]]:
+    """batch fetch canonical_urls for entities that don't have one (rpc doesn't return it)."""
+    missing = [e for e, _ in pairs if not e.canonical_url]
+    if not missing:
+        return pairs
+    try:
+        cl = get_supabase_client()
+        ids = [e.entity_id for e in missing]
+        rows = []
+        for i in range(0, len(ids), 100):
+            r = cl.table("entities").select("id, canonical_url").in_("id", ids[i:i+100]).execute()
+            rows.extend(r.data or [])
+        url_map = {row["id"]: str(row.get("canonical_url") or "") for row in rows}
+        for e, _ in pairs:
+            if not e.canonical_url and e.entity_id in url_map:
+                e.canonical_url = url_map[e.entity_id]
+    except Exception as ex:
+        print(f"fill_canonical_urls failed: {ex}")
+    return pairs
 
 
 def fetch_team_sponsors(limit: int = 50) -> list[tuple[Entity, float]]:
@@ -166,7 +189,7 @@ def fetch_team_sponsors(limit: int = 50) -> list[tuple[Entity, float]]:
         entity_rows = []
         for i in range(0, len(ids), 100):
             batch = ids[i:i + 100]
-            r2 = cl.table("entities").select("id, name, entity_type, summary, tags, support_types").in_("id", batch).execute()
+            r2 = cl.table("entities").select("id, name, entity_type, summary, canonical_url, tags, support_types").in_("id", batch).execute()
             entity_rows.extend(r2.data or [])
 
         # fetch their affinity evidence
@@ -189,6 +212,7 @@ def fetch_team_sponsors(limit: int = 50) -> list[tuple[Entity, float]]:
                 name=nm,
                 entity_type=str(row.get("entity_type") or "provider"),
                 summary=str(row.get("summary") or ""),
+                canonical_url=str(row.get("canonical_url") or ""),
                 tags=_to_str_list(row.get("tags")),
                 support_types=_to_str_list(row.get("support_types")),
                 waterloo_affinity_evidence=_norm_affinity(aff_by_eid.get(eid, [])),

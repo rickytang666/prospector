@@ -127,8 +127,7 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
     )
 
     for i, c in enumerate(top, start=1):
-        sb = c.get("score_breakdown") or {}
-        sem = float(sb.get("semantic_score", 0.0))
+        score = float(c.get("overall_score", 0.0))
         blurb = _blurb_line(c)
         contact = contacts.get(c["name"], {})
         contact_line = ""
@@ -144,7 +143,7 @@ def candidates_embed(candidates, query, retrieval_metadata=None, title="Top Supp
         if not contact_line:
             contact_line = _extract_contact_line(c) or ""
         lines = [
-            f"`{score_bar(sem)}`",
+            f"`{score_bar(score)}`",
             f"_{blurb}_" if blurb else "_No summary available._",
         ]
         if contact_line:

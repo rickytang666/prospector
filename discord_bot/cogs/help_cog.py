@@ -18,9 +18,8 @@ HELP_SECTIONS = [
         ("/remove_from_memory", "Find and delete chunks by search query (e.g. fix wrong info)."),
         ("/nuke", "Wipe all data for your team (confirm with ✅)."),
     ]),
-    ("Find support & explain", [
-        ("/find-support", "Get ranked support candidates for a query."),
-        ("/find-providers", "Find providers for a technical need."),
+    ("Find sponsors & explain", [
+        ("/find-sponsors", "Get ranked sponsor and support candidates for a query."),
         ("/explain-match", "Explain why a candidate fits your team."),
         ("/recruit-gap", "Show inferred recruiting needs for your team."),
     ]),

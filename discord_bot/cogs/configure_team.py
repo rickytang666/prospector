@@ -93,7 +93,7 @@ class ConfigureTeam(commands.Cog):
 
         await db.set_user_team(guild_id, user_id, team_name.strip())
         await interaction.response.send_message(
-            f"You are now assigned to **{team_name}**. Your context is loaded from the database when you use /chat, /find-support, etc. Use `/analyze-team` to view the summary.",
+            f"You are now assigned to **{team_name}**. Your context is loaded from the database when you use /chat, /find-sponsors, etc. Use `/analyze-team` to view the summary.",
             ephemeral=True,
         )
 
@@ -118,7 +118,7 @@ class ConfigureTeam(commands.Cog):
                 mark = " **← active**" if name == active else ""
                 lines.append(f"• {name}{mark}")
             embed.add_field(name="Teams you're in", value="\n".join(lines) or "—", inline=False)
-            embed.add_field(name="Switch active", value="Use `/set-active-team` and pick a team to use for /chat, /find-support, etc.", inline=False)
+            embed.add_field(name="Switch active", value="Use `/set-active-team` and pick a team to use for /chat, /find-sponsors, etc.", inline=False)
         else:
             embed.add_field(name="Teams you're in", value="None — use `/configure-team add` to join one.", inline=False)
         if available_names:
@@ -127,7 +127,7 @@ class ConfigureTeam(commands.Cog):
             embed.add_field(name="Available", value="No teams registered. An admin can run `/setup-team`.", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="set-active-team", description="Set which team to use for /chat, /find-support, etc.")
+    @app_commands.command(name="set-active-team", description="Set which team to use for /chat, /find-sponsors, etc.")
     @app_commands.describe(team_name="Team to switch to (must be one you're in)")
     @app_commands.autocomplete(team_name=my_teams_autocomplete)
     async def set_active_team(self, interaction: discord.Interaction, team_name: str):
@@ -150,7 +150,7 @@ class ConfigureTeam(commands.Cog):
         cache = getattr(interaction.client, "team_context_cache", None)
         if isinstance(cache, dict) and key in cache:
             del cache[key]
-        await interaction.response.send_message(f"**{team_name}** is now your active team for /chat, /find-support, etc.", ephemeral=True)
+        await interaction.response.send_message(f"**{team_name}** is now your active team for /chat, /find-sponsors, etc.", ephemeral=True)
 
 
 async def setup(bot):
