@@ -60,6 +60,7 @@ class ExplainMatch(commands.Cog):
             "contact_email": contact.get("contact_email", ""),
             "contact_email_verified": contact.get("contact_email_verified", False),
             "website": contact.get("website", ""),
+            "waterloo_affinity_evidence": entity.get("waterloo_affinity_evidence") or [],
         }
 
         embed = explanation_embed(explanation, team_name=team_context["team_name"])

@@ -167,6 +167,32 @@ def explanation_embed(data, team_name=None):
     if reason:
         embed.add_field(name="Why", value=reason, inline=False)
 
+    # waterloo affinity — most persuasive thing to show
+    aff_ev = data.get("waterloo_affinity_evidence") or []
+    aff_texts = []
+    for ev in aff_ev[:3]:
+        if isinstance(ev, dict):
+            text = ev.get("text", "")
+        else:
+            text = getattr(ev, "text", "")
+        if text:
+            aff_texts.append(f"• {text}")
+    if aff_texts:
+        embed.add_field(name="Waterloo Connection", value="\n".join(aff_texts), inline=False)
+
+    # contact info
+    contact_bits = []
+    if data.get("contact_person"):
+        contact_bits.append(f"Contact: {data['contact_person']}")
+    if data.get("contact_email"):
+        email = data["contact_email"]
+        verified = data.get("contact_email_verified", False)
+        contact_bits.append(email if verified else f"{email} *(suggested)*")
+    if data.get("website"):
+        contact_bits.append(f"[website]({data['website']})")
+    if contact_bits:
+        embed.add_field(name="Contact", value=" • ".join(contact_bits), inline=False)
+
     tags = [t for t in (data.get("tags") or []) if t]
     if tags:
         embed.add_field(name="Tags", value=" ".join(f"`{t}`" for t in tags[:12]), inline=False)
