@@ -4,11 +4,8 @@ import os
 from typing import Any
 
 from retrieval.config import SUPABASE_RPC_MATCH_FN
-from retrieval.envload import load_project_env
 
 _client = None
-
-load_project_env()
 
 
 def _must(v: str | None, k: str):

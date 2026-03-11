@@ -2,13 +2,9 @@ from __future__ import annotations
 import os, math, hashlib
 from retrieval.config import EMBEDDING_MODEL, ALLOW_LOCAL_EMBED_FALLBACK, LOCAL_DIM
 from retrieval.models import Entity
-from retrieval.envload import load_project_env
-
 v_by_id = {}
 txt_by_id = {}
 client = None
-
-load_project_env()
 
 def _n(v):
     s=0.0

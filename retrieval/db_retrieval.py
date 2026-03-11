@@ -255,6 +255,7 @@ def fetch_candidates_from_db_with_meta(
             filters=filters or {},
         )
     except Exception as e:
+        print(f"[db_retrieval] rpc failed: {e}")
         return {
             "status": "db_error",
             "error": str(e),
