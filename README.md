@@ -126,11 +126,21 @@ You'll see `[on_ready] ready` when it's up. Slash commands sync automatically on
 Populates the sponsor database. Run once, re-run to update.
 
 ```bash
-python -m scraper.run
+python scraper/run.py
 ```
 
 Sources: Waterloo design team sponsor pages, Velocity incubator, Wikipedia engineering categories, curated seeds.
 
 Output: ~1,600 entities with summaries, tags, and Waterloo affinity evidence stored in Supabase.
+
+---
+
+## Dev Tools
+
+Test the RAG pipeline without opening Discord:
+
+```bash
+python test_rag.py "we need RF hardware support"
+```
 
 ---
