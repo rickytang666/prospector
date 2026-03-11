@@ -1,155 +1,60 @@
-#misc scraping
 import httpx
 import json
 import time
 from pathlib import Path
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
-
-# smart crawl imports
-import os
-from urllib.parse import urljoin, urlparse
-from dotenv import load_dotenv
-from google import genai
-
-load_dotenv()
-
 import trafilatura
 
 data_dir = Path("data")
 companies_file = data_dir / "companies.json"
 raw_dir = data_dir / "raw_pages"
 
-MAX_PAGES = 5
+_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
 
 
 def slug(name):
     return name.lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
 
 
-def scrape_url(url):
+def scrape_homepage(url: str) -> tuple[str, str]:
+    """fetch a page and return (final_url, clean_text)."""
     try:
-        r = httpx.get(url, timeout=20, follow_redirects=True, headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" 
-        })
+        r = httpx.get(url, timeout=15, follow_redirects=True, headers=_HEADERS)
         r.raise_for_status()
         text = trafilatura.extract(r.text) or ""
-        return r.text, text
+        return str(r.url), text
     except Exception as e:
-        print(f"    failed: {e}")
-        return None, ""
+        print(f"  failed: {e}")
+        return url, ""
 
 
-# scrape velocity profile page, find real company url
-def scrape_velocity_profile(company):
-    profile_url = company["url"]
-    raw_html, profile_text = scrape_url(profile_url)
-    if not raw_html:
-        return None, {}
-
-    soup = BeautifulSoup(raw_html, "html.parser")
-    real_url = None
-    for a in soup.find_all("a", href=True):
-        text = a.get_text(strip=True).lower()
-        href = a["href"]
-        if "visit" in text and "velocityincubator" not in href:
-            real_url = href
-            break
-
-    profile_data = {
-        "url": profile_url,
-        "title": f"{company['name']} - Velocity Profile",
-        "raw_text": profile_text,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-    }
-    return real_url, profile_data
-
-
-# scrape yc profile page for extra info
-def scrape_yc_profile(company):
-    name_slug = company["name"].lower().replace(" ", "-")
-    profile_url = f"https://www.ycombinator.com/companies/{name_slug}"
-    _, profile_text = scrape_url(profile_url)
-    if not profile_text:
-        return {}
-
-    return {
-        "url": profile_url,
-        "title": f"{company['name']} - YC Profile",
-        "raw_text": profile_text,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-# smart scraping -> look for other links 
-def get_links(html, base_url):
-    soup = BeautifulSoup(html, "html.parser")
-    base_domain = urlparse(base_url).netloc
-    links = []
-    for a in soup.find_all("a", href=True):
-        full = urljoin(base_url, a["href"])
-        if urlparse(full).netloc == base_domain and full != base_url:
-            links.append(full)
-    return list(set(links))
-
-
-def pick_best_links(links, company_name):
-    if not links:
-        return []
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-    prompt = f"""From {company_name}'s website, pick links most likely to have useful info about what the company does, their products, team, or mission.
-Return a JSON array of the best URLs (max 4). Skip privacy policy, terms, login, careers, etc.
-
-Links:
-{json.dumps(links[:50])}"""
-
+def resolve_velocity_url(profile_url: str) -> str | None:
+    """scrape velocity profile page to find the company's real website url."""
     try:
-        resp = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
-        )
-        return json.loads(resp.text)[:4]
-    except:
-        return links[:3]
+        r = httpx.get(profile_url, timeout=15, follow_redirects=True, headers=_HEADERS)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        # velocity profile has a "Visit" or "Website" link to the real company
+        for a in soup.find_all("a", href=True):
+            text = a.get_text(strip=True).lower()
+            href = a["href"]
+            if ("visit" in text or "website" in text) and "velocityincubator" not in href and href.startswith("http"):
+                return href
+        # fallback: first external link that isn't velocity
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.startswith("http") and "velocityincubator" not in href and "uwaterloo" not in href:
+                return href
+    except Exception as e:
+        print(f"  velocity profile fetch failed: {e}")
+    return None
 
 
-def smart_crawl(url, company_name):
-    pages = {}
-    raw_html, text = scrape_url(url)
-    if not raw_html:
-        return pages
-
-    if text:
-        pages["/"] = {
-            "url": url,
-            "title": company_name,
-            "raw_text": text,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-    links = get_links(raw_html, url)
-    best = pick_best_links(links, company_name)
-
-    for link in best:
-        if len(pages) >= MAX_PAGES:
-            break
-        time.sleep(0.5)
-        _, page_text = scrape_url(link)
-        if page_text:
-            path = urlparse(link).path or link
-            pages[path] = {
-                "url": link,
-                "title": f"{company_name} - {path}",
-                "raw_text": page_text,
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-            }
-
-    return pages
-
-
-# hybrid approach - smart crawl and profile handlers (velocity/yc vs design team)
 def scrape(limit=None):
+    """scrape homepages for non-wikidata companies.
+    wikidata companies get their text from wikipedia api extracts instead.
+    velocity companies get their real url resolved from the profile page first."""
     with open(companies_file) as f:
         companies = json.load(f)
     if limit:
@@ -157,52 +62,67 @@ def scrape(limit=None):
 
     raw_dir.mkdir(parents=True, exist_ok=True)
 
+    skipped_wiki = 0
+    scraped = 0
+    already_done = 0
+
     for i, company in enumerate(companies):
         name = company["name"]
         url = company.get("url")
+        src_type = company.get("source_type", "")
+
+        # wikidata companies use wikipedia extracts — skip
+        if src_type == "wikidata_vertical":
+            skipped_wiki += 1
+            continue
+
         if not url:
             print(f"[{i+1}/{len(companies)}] {name} - no url, skipping")
             continue
 
         company_dir = raw_dir / slug(name)
         if company_dir.exists():
-            print(f"[{i+1}/{len(companies)}] {name} - already scraped")
+            already_done += 1
             continue
 
-        print(f"[{i+1}/{len(companies)}] {name} - {url}")
+        print(f"[{i+1}/{len(companies)}] {name}")
         company_dir.mkdir(parents=True, exist_ok=True)
 
-        pages = {}
-        src_type = company.get("source_type", "")
-
-        if src_type == "velocity_startup":
-            real_url, profile = scrape_velocity_profile(company)
-            if profile:
-                pages["velocity_profile"] = profile
+        # velocity profile pages point to their own site, not company site
+        # resolve to real company url first
+        if src_type == "velocity_startup" and "velocityincubator.com" in url:
+            real_url = resolve_velocity_url(url)
             if real_url:
-                print(f"    real site: {real_url}")
-                pages.update(smart_crawl(real_url, name))
+                print(f"  velocity -> {real_url}")
+                url = real_url
+            else:
+                print(f"  couldn't resolve velocity real url, skipping")
+                company_dir.rmdir()
+                continue
+            time.sleep(0.3)
 
-        elif src_type == "yc_startup":
-            profile = scrape_yc_profile(company)
-            if profile:
-                pages["yc_profile"] = profile
-            pages.update(smart_crawl(url, name))
-
-        else:
-            pages.update(smart_crawl(url, name))
+        final_url, text = scrape_homepage(url)
+        pages = {}
+        if text:
+            pages["homepage"] = {
+                "url": final_url,
+                "title": name,
+                "raw_text": text,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
 
         with open(company_dir / "pages.json", "w") as f:
             json.dump(pages, f, indent=2)
 
-        meta = {**company, "pages_scraped": len(pages)}
+        meta = {**company, "scraped_url": final_url, "pages_scraped": len(pages)}
         with open(company_dir / "meta.json", "w") as f:
             json.dump(meta, f, indent=2)
 
-        print(f"    scraped {len(pages)} pages")
-        time.sleep(1)
+        scraped += 1
+        print(f"  {'got ' + str(len(text)) + ' chars' if text else 'no text'}")
+        time.sleep(0.5)
 
-    print("done")
+    print(f"\ndone. scraped={scraped}, already_done={already_done}, skipped_wikidata={skipped_wiki}")
 
 
 if __name__ == "__main__":

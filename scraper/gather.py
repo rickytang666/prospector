@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
-from google import genai
 from bs4 import BeautifulSoup
 
 load_dotenv()
@@ -22,7 +21,7 @@ SDC_DIR_URL = f"{SDC_BASE}/sedra-student-design-centre/catalogs/directory-teams/
 
 
 def discover_teams():
-    """scrape sdc directory"""
+    """scrape sdc directory for all waterloo design teams"""
     data_dir.mkdir(exist_ok=True)
 
     existing = {}
@@ -44,7 +43,6 @@ def discover_teams():
             if name and name not in existing:
                 profile_links.append((name, href))
 
-    # dedup
     seen = set()
     unique = []
     for name, href in profile_links:
@@ -75,7 +73,6 @@ def discover_teams():
             parent = tag.parent
             a = parent.find("a", href=True)
             if not a:
-                # might be in the next sibling
                 nxt = parent.find_next_sibling()
                 if nxt:
                     a = nxt.find("a", href=True)
@@ -106,9 +103,6 @@ def discover_teams():
         time.sleep(0.5)
 
     print(f"\ndone. {len(teams)} teams total")
-    print(f"  with website: {sum(1 for t in teams if t['website_url'])}")
-    print(f"  no website: {sum(1 for t in teams if not t['website_url'])}")
-    print(f"  uw subdomains: {sum(1 for t in teams if t['is_uw_subdomain'])}")
     return teams
 
 
@@ -145,32 +139,8 @@ def _get_internal_links(html: str, base_url: str) -> list[tuple[str, str]]:
     return links
 
 
-def _pick_sponsor_page_llm(links: list[tuple[str, str]], team_name: str) -> tuple[str | None, bool]:
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-    link_list = [{"url": url, "text": text} for url, text in links[:15]]
-    prompt = f"""From {team_name}'s website navigation, which URL is most likely their sponsors or partners page?
-Return JSON: {{"url": "...", "found": true}}
-If none look like a sponsors/partners/supporters page, return {{"url": null, "found": false}}.
-Don't guess — only return found:true if you're confident.
-
-Links:
-{json.dumps(link_list)}"""
-
-    try:
-        resp = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
-        )
-        result = json.loads(resp.text)
-        return result.get("url"), bool(result.get("found", False))
-    except Exception as e:
-        print(f"  llm pick failed: {e}")
-        return None, False
-
-
 def find_sponsor_pages():
-    """for each team in teams.json, find their sponsor page url."""
+    """for each team, find their sponsor page url using heuristic scoring only."""
     if not teams_file.exists():
         print("no teams.json found, run discover first")
         return []
@@ -178,7 +148,6 @@ def find_sponsor_pages():
     with open(teams_file) as f:
         teams = json.load(f)
 
-    # resume
     existing = {}
     if sponsor_pages_file.exists():
         with open(sponsor_pages_file) as f:
@@ -204,7 +173,7 @@ def find_sponsor_pages():
         print(f"[{i+1}/{len(to_process)}] {name} ({url})")
 
         if is_uw:
-            print(f"  skipping uw subdomain (handle separately)")
+            print(f"  skipping uw subdomain")
             results.append({"name": name, "website_url": url, "sponsor_page_url": None, "found": False, "reason": "uw_subdomain"})
             _save_sponsor_pages(results)
             continue
@@ -218,27 +187,19 @@ def find_sponsor_pages():
             continue
 
         links = _get_internal_links(html, url)
-
-        # heuristic: score every link
         scored = [(score, link_url, text) for link_url, text in links if (score := _score_link(link_url, text)) > 0]
         scored.sort(reverse=True)
 
         if scored:
             best_score, best_url, best_text = scored[0]
-            print(f"  heuristic match (score={best_score}): {best_url} [{best_text!r}]")
+            print(f"  heuristic match (score={best_score}): {best_url}")
             results.append({"name": name, "website_url": url, "sponsor_page_url": best_url, "found": True, "reason": "heuristic"})
-            _save_sponsor_pages(results)
         else:
-            print(f"  no heuristic match, asking llm ({len(links)} links)...")
-            sponsor_url, found = _pick_sponsor_page_llm(links, name)
-            if found and sponsor_url:
-                print(f"  llm picked: {sponsor_url}")
-            else:
-                print(f"  llm: not found")
-            results.append({"name": name, "website_url": url, "sponsor_page_url": sponsor_url, "found": found, "reason": "llm"})
-            _save_sponsor_pages(results)
-            time.sleep(1)  # rate limit gemini
+            # no sponsor page found — will fall back to homepage in gather_from_teams
+            print(f"  no sponsor page found")
+            results.append({"name": name, "website_url": url, "sponsor_page_url": None, "found": False, "reason": "not_found"})
 
+        _save_sponsor_pages(results)
         time.sleep(0.5)
 
     found_count = sum(1 for r in results if r["found"])
@@ -259,144 +220,94 @@ def fetch_page(url):
     return r.text
 
 
-def _extract_image_links(html: str) -> str:
-    """pull out <a><img></a> sponsor logo patterns — LLMs miss these if not surfaced explicitly."""
+# text that definitely isn't a company name
+_SKIP_TEXTS = {
+    "", "home", "about", "contact", "careers", "login", "sign up", "signup",
+    "register", "privacy", "terms", "team", "news", "blog", "events", "gallery",
+    "donate", "visit", "click here", "learn more", "read more", "website", "more",
+    "facebook", "twitter", "instagram", "linkedin", "youtube", "discord", "x",
+    "apply", "join", "get started", "explore", "back", "next", "previous",
+}
+
+
+def extract_sponsors_bs4(html: str, source: dict) -> list[dict]:
+    """extract sponsor company names and urls from html using bs4 only.
+    two-pass: image links first (logo grids), then text external links."""
     soup = BeautifulSoup(html, "html.parser")
-    entries = []
+    base_url = source.get("url", "")
+    base_domain = urlparse(base_url).netloc
+    team = source.get("team")
+    src_type = source.get("type", "design_team_sponsor")
+
+    companies = []
     seen_hrefs = set()
+
+    # pass 1: linked images (sponsor logo grids — most common format)
     for a in soup.find_all("a", href=True):
         img = a.find("img")
         if not img:
             continue
         href = a["href"].strip()
-        if not href.startswith("http") or href in seen_hrefs:
+        if not href.startswith("http"):
+            href = urljoin(base_url, href)
+        if not href.startswith("http"):
+            continue
+        if urlparse(href).netloc == base_domain:
+            continue
+        if href in seen_hrefs:
             continue
         seen_hrefs.add(href)
+
         alt = img.get("alt", "").strip()
-        src = img.get("src", "").strip()
-        # use alt text if present, else guess from image filename
-        name_hint = alt or src.split("/")[-1].split(".")[0].replace("-", " ").replace("_", " ")
-        entries.append(f"- name: {name_hint!r}, url: {href}")
-    return "\n".join(entries)
-
-
-def extract_with_llm(html, source):
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
-    page_owner = (source.get("team") or "").strip()
-    owner_instruction = ""
-    if page_owner:
-        owner_instruction = f"\nThis page is from \"{page_owner}\". Do NOT include \"{page_owner}\" or the page owner itself in the list—only list external sponsors or partners."
-
-    image_links = _extract_image_links(html)
-    image_links_section = ""
-    if image_links:
-        image_links_section = f"\n\nLinked images found on page (likely sponsor logos — prioritize these):\n{image_links}"
-
-    prompt = f"""Extract all company or organization names and their website URLs from this HTML.
-Return ONLY a JSON array like: [{{"name": "...", "url": "..."}}]
-If you can't find a direct URL for a company, try to infer it (e.g. "Intel" -> "https://intel.com").
-Only include real companies/orgs that are sponsors or partners listed on the page. Skip navigation links and generic stuff.{owner_instruction}{image_links_section}
-
-HTML:
-{html[:50000]}"""
-
-    resp = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
-        config={"response_mime_type": "application/json"},
-    )
-
-    try:
-        raw = json.loads(resp.text)
-    except:
-        print(f"  failed to parse LLM response for {source['url']}")
-        return []
-
-    companies = []
-    for item in raw:
-        companies.append({
-            "name": item["name"],
-            "url": item.get("url"),
-            "source_url": source["url"],
-            "source_type": source["type"],
-            "team": source.get("team"),
-            "association": source.get("association"),
-        })
-    return companies
-
-
-# velocity - scrape with bs4
-def extract_velocity(html, source):
-    soup = BeautifulSoup(html, "html.parser")
-    companies = []
-    seen = set()
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "/company/" not in href:
+        img_src = img.get("src", "").strip()
+        # alt text first, fall back to filename
+        name = alt or img_src.split("/")[-1].split(".")[0].replace("-", " ").replace("_", " ").title()
+        name = name.strip()
+        if not name or len(name) < 2:
             continue
-        slug = href.rstrip("/").split("/")[-1]
-        if slug in seen:
-            continue
-        seen.add(slug)
-        name = slug.replace("-", " ").title()
+
         companies.append({
             "name": name,
-            "url": f"https://velocityincubator.com{href}" if href.startswith("/") else href,
+            "url": href,
             "source_url": source["url"],
-            "source_type": source["type"],
-            "team": None,
+            "source_type": src_type,
+            "team": team,
         })
-    return companies
 
+    # pass 2: text-based external links (for pages that list sponsors as links, not logos)
+    # only run if we didn't find many from pass 1
+    if len(companies) < 3:
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href.startswith("http"):
+                href = urljoin(base_url, href)
+            if not href.startswith("http"):
+                continue
+            if urlparse(href).netloc == base_domain:
+                continue
+            if href in seen_hrefs:
+                continue
 
-# yc public api
-def extract_yc(source):
-    all_companies = []
-    page = 1
-    while True:
-        print(f"  page {page}...")
-        r = httpx.get("https://api.ycombinator.com/v0.1/companies", params={"page": page}, headers={
-            "User-Agent": "Mozilla/5.0"
-        }, timeout=30)
-        data = r.json()
-        batch = data.get("companies", [])
-        if not batch:
-            break
-        for c in batch:
-            all_companies.append({
-                "name": c.get("name", ""),
-                "url": c.get("url"),
+            text = a.get_text(strip=True)
+            if not text or text.lower() in _SKIP_TEXTS:
+                continue
+            # company names are short — skip long strings (sentences, descriptions)
+            if len(text) > 60 or len(text.split()) > 6:
+                continue
+            # skip obvious nav/social patterns
+            if any(x in href.lower() for x in ["/privacy", "/terms", "/careers", "/login", "/signin"]):
+                continue
+
+            seen_hrefs.add(href)
+            companies.append({
+                "name": text,
+                "url": href,
                 "source_url": source["url"],
-                "source_type": source["type"],
-                "team": None,
+                "source_type": src_type,
+                "team": team,
             })
-        page += 1
-        if page > 5:  # cap it for mvp
-            break
-        time.sleep(0.5)
-    return all_companies
 
-
-def dedupe(companies):
-    seen = {}
-    for c in companies:
-        key = c["name"].lower().strip()
-        if not key:
-            continue
-        if key not in seen:
-            entry = dict(c)
-            if c.get("source_type") == "design_team_sponsor" and c.get("team"):
-                entry["source_teams"] = [{"team": c["team"], "source_url": c.get("source_url", "")}]
-            seen[key] = entry
-        else:
-            # merge
-            if c.get("source_type") == "design_team_sponsor" and c.get("team"):
-                existing = seen[key].setdefault("source_teams", [])
-                known = {t["team"] for t in existing}
-                if c["team"] not in known:
-                    existing.append({"team": c["team"], "source_url": c.get("source_url", "")})
-    return list(seen.values())
+    return companies
 
 
 teams_scraped_file = data_dir / "teams_scraped.txt"
@@ -414,7 +325,7 @@ def _mark_scraped(name: str):
 
 
 def gather_from_teams():
-    """step 1c: scrape each team's sponsor page (or homepage if not found) and extract companies."""
+    """scrape each team's sponsor page and extract companies with bs4 (no llm)."""
     if not sponsor_pages_file.exists():
         print("no team_sponsor_pages.json found, run find_sponsors first")
         return
@@ -441,9 +352,9 @@ def gather_from_teams():
             label = "sponsor page"
         elif team.get("website_url"):
             url = team["website_url"]
-            label = "homepage (no sponsor page found, trying anyway)"
+            label = "homepage (no sponsor page)"
         else:
-            print(f"[{i+1}/{len(to_do)}] {name} - no url at all, skipping")
+            print(f"[{i+1}/{len(to_do)}] {name} - no url, skipping")
             _mark_scraped(name)
             continue
 
@@ -456,15 +367,15 @@ def gather_from_teams():
             _mark_scraped(name)
             continue
 
-        # SPA shell
+        # skip SPA shells with no content
         plain_text = BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True)
         if len(plain_text) < 300:
-            print(f"  very little text ({len(plain_text)} chars), likely SPA shell — skipping")
+            print(f"  very little text ({len(plain_text)} chars), likely SPA — skipping")
             _mark_scraped(name)
             continue
 
         src = {"url": url, "type": "design_team_sponsor", "team": name}
-        companies = extract_with_llm(html, src)
+        companies = extract_sponsors_bs4(html, src)
         print(f"  extracted {len(companies)} companies")
 
         all_companies.extend(companies)
@@ -472,7 +383,7 @@ def gather_from_teams():
         with open(out_file, "w") as f:
             json.dump(all_companies, f, indent=2)
 
-        time.sleep(2)
+        time.sleep(1)
 
     deduped = dedupe(all_companies)
     print(f"\ntotal: {len(all_companies)}, after dedup: {len(deduped)}")
@@ -482,7 +393,7 @@ def gather_from_teams():
 
 
 def gather_seeds():
-    """inject hardcoded seeds"""
+    """inject hardcoded seeds from seeds.json"""
     data_dir.mkdir(exist_ok=True)
 
     with open(seeds_file) as f:
@@ -516,13 +427,60 @@ def gather_seeds():
     print(f"\nadded {added} seeds ({len(seeds) - added} already existed)")
 
 
+def dedupe(companies):
+    seen = {}
+    for c in companies:
+        key = c["name"].lower().strip()
+        if not key:
+            continue
+        if key not in seen:
+            entry = dict(c)
+            if c.get("source_type") == "design_team_sponsor" and c.get("team"):
+                entry["source_teams"] = [{"team": c["team"], "source_url": c.get("source_url", "")}]
+            seen[key] = entry
+        else:
+            # merge sponsor teams
+            if c.get("source_type") == "design_team_sponsor" and c.get("team"):
+                existing = seen[key].setdefault("source_teams", [])
+                known = {t["team"] for t in existing}
+                if c["team"] not in known:
+                    existing.append({"team": c["team"], "source_url": c.get("source_url", "")})
+    return list(seen.values())
+
+
+# velocity - scrape with bs4
+def extract_velocity(html, source):
+    soup = BeautifulSoup(html, "html.parser")
+    companies = []
+    seen = set()
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "/company/" not in href:
+            continue
+        company_slug = href.rstrip("/").split("/")[-1]
+        if company_slug in seen:
+            continue
+        seen.add(company_slug)
+        # try to get the real name from the link text or nearby heading
+        name = a.get_text(strip=True) or company_slug.replace("-", " ").title()
+        if not name or len(name) < 2:
+            name = company_slug.replace("-", " ").title()
+        companies.append({
+            "name": name,
+            "url": f"https://velocityincubator.com{href}" if href.startswith("/") else href,
+            "source_url": source["url"],
+            "source_type": source["type"],
+            "team": None,
+        })
+    return companies
+
+
 def gather():
     data_dir.mkdir(exist_ok=True)
 
     with open(sources_file) as f:
         sources = json.load(f)
 
-    # load existing so we append rather than overwrite
     all_companies = []
     if out_file.exists():
         with open(out_file) as f:
@@ -532,27 +490,25 @@ def gather():
     for src in sources:
         print(f"fetching {src['url']}...")
 
-        if src["type"] == "yc_startup":
-            companies = extract_yc(src)
-
-        elif src["type"] == "velocity_startup":
+        if src["type"] == "velocity_startup":
             try:
                 html = fetch_page(src["url"])
             except Exception as e:
                 print(f"  skip: {e}")
                 continue
-            print(f"  parsing with bs4...")
+            print(f"  parsing velocity with bs4...")
             companies = extract_velocity(html, src)
 
         else:
+            # engineering competition sponsors and similar — bs4 extraction
             try:
                 html = fetch_page(src["url"])
             except Exception as e:
                 print(f"  skip: {e}")
                 continue
-            print(f"  extracting with LLM...")
-            companies = extract_with_llm(html, src)
-            time.sleep(2)
+            print(f"  extracting sponsors with bs4...")
+            companies = extract_sponsors_bs4(html, src)
+            time.sleep(1)
 
         print(f"  found {len(companies)}")
         all_companies.extend(companies)
@@ -573,8 +529,9 @@ if __name__ == "__main__":
         find_sponsor_pages()
         gather_from_teams()
         gather_seeds()
-        from scraper.wikidata import gather_wikidata
+        from scraper.wikidata import gather_wikidata, fetch_wikipedia_extracts
         gather_wikidata(out_file)
+        fetch_wikipedia_extracts(out_file)
         gather()
     elif cmd == "discover":
         discover_teams()
@@ -587,8 +544,10 @@ if __name__ == "__main__":
     elif cmd == "wikidata":
         from scraper.wikidata import gather_wikidata
         gather_wikidata(out_file)
+    elif cmd == "wiki_extracts":
+        from scraper.wikidata import fetch_wikipedia_extracts
+        fetch_wikipedia_extracts(out_file)
     elif cmd == "reset_team" and len(sys.argv) > 2:
-        # remove a team
         team_name = " ".join(sys.argv[2:]).lower()
         if teams_scraped_file.exists():
             lines = teams_scraped_file.read_text().splitlines()

@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 from scraper.gather import gather, gather_seeds, gather_from_teams, discover_teams, find_sponsor_pages
+from scraper.wikidata import fetch_wikipedia_extracts, search_wikipedia_extracts
 from scraper.scrape import scrape
 from scraper.enrich import enrich, fast_enrich
 from scraper.embedding import embed_entity, EMBEDDING_MODEL, get_embedding_error_hint
@@ -71,69 +72,53 @@ def get_supabase():
     return create_client(url, key)
 
 
-def store_to_supabase(entities, raw_dir):
+def _chunks(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+def store_to_supabase(entities, raw_dir, batch_size=100):
     sb = get_supabase()
     if not sb:
         print("no supabase creds, skipping db store")
         return 0
 
-    count = 0
-    for entity in entities:
-        # insert main entity
-        row = {
-            "id": entity["id"],
-            "name": entity["name"],
-            "entity_type": entity.get("entity_type", "provider"),
-            "canonical_url": entity.get("canonical_url"),
-            "summary": entity.get("summary"),
-            "tags": entity.get("tags", []),
-            "support_types": entity.get("support_types", []),
-            "source_urls": entity.get("source_urls", []),
+    # batch upsert entities (100 per request instead of 1652 individual requests)
+    entity_rows = [
+        {
+            "id": e["id"],
+            "name": e["name"],
+            "entity_type": e.get("entity_type", "provider"),
+            "canonical_url": e.get("canonical_url"),
+            "summary": e.get("summary"),
+            "tags": e.get("tags", []),
+            "support_types": e.get("support_types", []),
+            "source_urls": e.get("source_urls", []),
         }
-        sb.table("entities").upsert(row, on_conflict="id").execute()
+        for e in entities
+    ]
+    for i, batch in enumerate(_chunks(entity_rows, batch_size)):
+        sb.table("entities").upsert(batch, on_conflict="id").execute()
+        print(f"  entities: {min((i+1)*batch_size, len(entity_rows))}/{len(entity_rows)}")
 
-        # insert affinity evidence
-        for ev in entity.get("waterloo_affinity_evidence", []):
-            sb.table("affinity_evidence").insert({
-                "entity_id": entity["id"],
+    # batch affinity evidence
+    affinity_rows = []
+    for e in entities:
+        for ev in e.get("waterloo_affinity_evidence", []):
+            affinity_rows.append({
+                "entity_id": e["id"],
                 "type": ev["type"],
                 "text": ev["text"],
                 "source_url": ev.get("source_url", ""),
-            }).execute()
+            })
+    for batch in _chunks(affinity_rows, batch_size):
+        sb.table("affinity_evidence").upsert(batch).execute()
+    print(f"  affinity_evidence: {len(affinity_rows)} rows")
 
-        # insert contact routes
-        for cr in entity.get("contact_routes", []):
-            sb.table("contact_routes").insert({
-                "entity_id": entity["id"],
-                "type": cr["type"],
-                "value": cr["value"],
-            }).execute()
+    # skip entity_documents — not used by rag retrieval, just bloat
+    # skip contact_routes — empty for all entities right now
 
-        # insert scraped docs
-        slug = entity["name"].lower().replace(" ", "_").replace("/", "_").replace(".", "")[:50]
-        pages_file = raw_dir / slug / "pages.json"
-        if pages_file.exists():
-            with open(pages_file) as f:
-                pages = json.load(f)
-            for page in pages.values():
-                sb.table("entity_documents").insert({
-                    "entity_id": entity["id"],
-                    "url": page.get("url", ""),
-                    "title": page.get("title"),
-                    "raw_text": page.get("raw_text"),
-                    "fetched_at": page.get("fetched_at"),
-                }).execute()
-
-        # vector embedding for semantic search (retrieval RPC match_entities_for_team)
-        emb = embed_entity(entity)
-        if emb is not None:
-            sb.table("entity_embeddings").upsert({
-                "entity_id": entity["id"],
-                "embedding": emb,
-                "model": EMBEDDING_MODEL,
-            }, on_conflict="entity_id").execute()
-
-        count += 1
+    count = len(entities)
 
     return count
 
@@ -341,8 +326,10 @@ def run_pipeline(
         gather_seeds()
         from scraper.wikidata import gather_wikidata
         gather_wikidata(data_dir / "companies.json")
+        fetch_wikipedia_extracts(data_dir / "companies.json")
         gather()
         scrape(limit=params.limit)
+        search_wikipedia_extracts(data_dir / "companies.json")
 
     enrich(limit=params.limit)
 
