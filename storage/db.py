@@ -1,4 +1,5 @@
 import asyncio
+import json
 import threading
 from supabase import create_client, Client
 from config import SUPABASE_URL, SUPABASE_KEY
@@ -174,6 +175,33 @@ async def remove_user_teams_for_team(guild_id: str, team_name: str) -> None:
     await asyncio.to_thread(_run)
 
 
+def _build_summary(stored: dict) -> str:
+    # raw_llm_output is JSON — parse it and build a readable string
+    raw = stored.get("raw_llm_output") or ""
+    parsed = {}
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            pass
+
+    focus = parsed.get("focus_areas") or stored.get("focus_areas") or []
+    blockers = parsed.get("blockers") or stored.get("blockers") or []
+    needs = parsed.get("needs") or stored.get("needs") or []
+    tech = parsed.get("tech_stack") or stored.get("tech_stack") or []
+
+    parts = []
+    if focus:
+        parts.append("Working on: " + ", ".join(focus))
+    if tech:
+        parts.append("Tech stack: " + ", ".join(tech))
+    if blockers:
+        parts.append("Blockers: " + ", ".join(blockers))
+    if needs:
+        parts.append("Needs: " + ", ".join(needs))
+    return "\n".join(parts)
+
+
 async def get_team_context_for_user(guild_id: str, user_id: str) -> dict | None:
     """Build full team context dict for a user (their assigned team). Returns None if no assignment."""
     team_name = await get_user_team(guild_id, user_id)
@@ -200,7 +228,7 @@ async def get_team_context_for_user(guild_id: str, user_id: str) -> dict | None:
         "blockers": blockers,
         "active_blockers": [{"summary": b, "tags": [], "severity": "medium"} for b in blockers],
         "inferred_support_needs": stored.get("needs") or [],
-        "context_summary": stored.get("raw_llm_output") or "",
+        "context_summary": _build_summary(stored),
     }
 
 

@@ -1,39 +1,70 @@
+import asyncio
+import json
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
+from openai import AsyncOpenAI
 from storage import db
 from discord_bot.ui.embeds import team_context_embed
+
+
+async def _llm_recruiting_gaps(team_name: str, stored: dict) -> list[dict]:
+    key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        return []
+    client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
+
+    import json as _json
+    subsystems = stored.get("focus_areas") or []
+    blockers = stored.get("blockers") or []
+    needs = stored.get("needs") or []
+    tech_stack = stored.get("tech_stack") or []
+
+    # raw_llm_output is JSON — parse it to get any extra fields
+    raw = stored.get("raw_llm_output") or ""
+    if raw:
+        try:
+            parsed = _json.loads(raw)
+            subsystems = subsystems or parsed.get("focus_areas") or []
+            blockers = blockers or parsed.get("blockers") or []
+            needs = needs or parsed.get("needs") or []
+            tech_stack = tech_stack or parsed.get("tech_stack") or []
+        except Exception:
+            pass
+
+    prompt = f"""You are analyzing a university engineering design team called "{team_name}".
+
+Subsystems / focus areas: {', '.join(subsystems) if subsystems else 'not specified'}
+Tech stack: {', '.join(tech_stack) if tech_stack else 'not specified'}
+Active blockers: {', '.join(blockers) if blockers else 'none listed'}
+Support needs: {', '.join(needs) if needs else 'none listed'}
+
+Based on all the above, what specific engineering or technical roles should this team recruit for?
+Be specific to what this team actually does — mention the relevant technology or subsystem in the reason.
+Do not give generic answers like "software engineer" without saying what specifically they'd work on.
+
+Return JSON: {{"gaps": [{{"role": "Role Title", "reason": "1 sentence why, mentioning the specific work"}}]}}
+3-5 gaps max."""
+
+    try:
+        resp = await client.chat.completions.create(
+            model="google/gemini-2.5-flash-lite",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            max_tokens=500,
+        )
+        parsed = json.loads(resp.choices[0].message.content)
+        return parsed.get("gaps", [])[:5]
+    except Exception as e:
+        # print(f"[analyze_team] llm gaps failed: {e}")
+        return []
 
 
 class AnalyzeTeam(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-
-    def _build_recruiting_gaps(self, blockers: list[str], needs: list[str]):
-        text = " ".join((blockers or []) + (needs or [])).lower()
-        role_rules = [
-            ("Embedded Systems / Firmware", ["firmware", "rtos", "interrupt", "embedded"]),
-            ("RF / Communications", ["rf", "radio", "antenna", "signal", "communication"]),
-            ("Geospatial / Ground Station", ["mapping", "geospatial", "ground station", "telemetry"]),
-            ("Hardware / PCB Manufacturing", ["pcb", "manufacturing", "fabrication", "assembly", "components"]),
-            ("Documentation / Onboarding", ["onboarding", "docs", "documentation", "knowledge base"]),
-            ("Cloud / Simulation", ["cloud", "simulation", "compute"]),
-        ]
-        out = []
-        for role, kws in role_rules:
-            hit = [k for k in kws if k in text]
-            if not hit:
-                continue
-            out.append({
-                "role": role,
-                "reason": f"Inferred from analyzed context keywords: {', '.join(hit[:3])}.",
-            })
-        if not out:
-            for n in (needs or []):
-                if str(n).strip():
-                    out.append({"role": str(n), "reason": "Inferred from analyzed team needs."})
-        return out[:6]
 
     @app_commands.command(name="analyze-team", description="Load your team's context (run after configure-team add).")
     async def analyze_team(self, interaction: discord.Interaction):
@@ -61,9 +92,12 @@ class AnalyzeTeam(commands.Cog):
             )
             return
 
-        blockers = stored.get("blockers", [])
-        needs = stored.get("needs", [])
-        recruiting_gaps = self._build_recruiting_gaps(blockers, needs)
+        # print(f"[analyze_team] stored keys: {list(stored.keys())}")
+        # print(f"[analyze_team] focus_areas: {stored.get('focus_areas')}")
+        # print(f"[analyze_team] blockers: {stored.get('blockers')}")
+        # print(f"[analyze_team] raw_llm_output[:200]: {str(stored.get('raw_llm_output', ''))[:200]}")
+        # print(f"[analyze_team] ctx subsystems: {ctx.get('subsystems')}")
+        recruiting_gaps = await _llm_recruiting_gaps(ctx["team_name"], stored)
         team_context = {
             **ctx,
             "recruiting_gaps": recruiting_gaps,

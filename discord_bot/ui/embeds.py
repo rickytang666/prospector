@@ -42,19 +42,26 @@ def email_sent_embed(to_email: str, draft: str) -> discord.Embed:
 
 
 def team_context_embed(context):
-    repo_url = context["repo_url"]
+    repo_url = context.get("repo_url") or context.get("repo") or ""
 
     embed = discord.Embed(
         title=f"{context['team_name']} — Team Analysis",
-        url=repo_url,
+        url=repo_url or None,
         color=discord.Color.blurple(),
         timestamp=discord.utils.utcnow()
     )
 
-    parts = repo_url.rstrip("/").split("/")
-    if len(parts) >= 4 and "github.com" in parts:
-        owner = parts[parts.index("github.com") + 1]
-        embed.set_thumbnail(url=f"https://github.com/{owner}.png")
+    if repo_url:
+        parts = repo_url.rstrip("/").split("/")
+        if len(parts) >= 4 and "github.com" in parts:
+            owner = parts[parts.index("github.com") + 1]
+            embed.set_thumbnail(url=f"https://github.com/{owner}.png")
+
+    summary = context.get("context_summary") or ""
+    if summary:
+        # trim to fit discord field limit
+        preview = summary[:1000] + ("..." if len(summary) > 1000 else "")
+        embed.add_field(name="What they're working on", value=preview, inline=False)
 
     if context.get("subsystems"):
         embed.add_field(
@@ -64,9 +71,21 @@ def team_context_embed(context):
         )
 
     if context.get("blockers"):
+        blockers = context["blockers"]
+        # blockers can be a list of strings or dicts
+        lines = []
+        for b in blockers:
+            if isinstance(b, dict):
+                lines.append(f"• {b.get('summary', str(b))}")
+            else:
+                lines.append(f"• {b}")
+        embed.add_field(name="Active Blockers", value="\n".join(lines), inline=False)
+
+    needs = context.get("inferred_support_needs") or context.get("needs") or []
+    if needs:
         embed.add_field(
-            name="Blockers",
-            value="\n".join(f"• {b}" for b in context["blockers"]),
+            name="Support Needs",
+            value="\n".join(f"• {n}" for n in needs),
             inline=False
         )
 
@@ -76,6 +95,18 @@ def team_context_embed(context):
             value=" ".join(f"`{t}`" for t in context["tech_stack"]),
             inline=False
         )
+
+    gaps = context.get("recruiting_gaps") or []
+    if gaps:
+        lines = [f"**{g['role']}** — {g['reason']}" for g in gaps]
+        embed.add_field(
+            name="Recruiting Gaps",
+            value="\n".join(lines),
+            inline=False
+        )
+
+    if not embed.fields:
+        embed.description = "No team context found. Try running `/setup-team` to ingest your docs."
 
     return embed
 
