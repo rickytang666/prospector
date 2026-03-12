@@ -20,6 +20,8 @@ Prospector fixes that. Point it at your GitHub, Notion, or Confluence and it bui
 
 https://github.com/user-attachments/assets/c71ee95b-9114-423a-8f52-e9d12d530846
 
+Or view it on YouTube: https://youtu.be/Bt6CjH47xMQ
+
 ## Features
 
 - **Sponsor discovery** — semantic search over 1,600+ companies, re-ranked by an LLM for your specific query
