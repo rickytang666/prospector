@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" width="150">
+<img src="assets/logo.png" width="150">
 
 # Prospector
 
@@ -25,8 +25,6 @@ Prospector fixes that. Point it at your GitHub, Notion, or Confluence and it bui
 - **Outreach drafting** — generates and sends cold emails via Gmail
 - **Team context ingestion** — GitHub, Notion, Confluence, any URL
 - **RAG chat** — ask anything about your team or the sponsor database
-
----
 
 ## How to use
 
@@ -64,15 +62,25 @@ cp .env.example .env
 # fill in all keys above
 ```
 
-#### 5. Run the bot
+#### 5. Populate the database
+
+Run once, re-run to update.
+
+```bash
+python scraper/run.py
+```
+
+Sources: Waterloo design team sponsor pages, Velocity incubator, Wikipedia engineering categories, curated seeds.
+
+Output: ~1,600 entities with summaries, tags, and Waterloo affinity evidence stored in Supabase.
+
+#### 6. Run the bot
 
 ```bash
 bash scripts/run_bot.sh
 ```
 
 You'll see `[on_ready] ready` when it's up. Slash commands sync automatically on startup (~5s).
-
----
 
 ### Discord Commands
 
@@ -108,39 +116,21 @@ You'll see `[on_ready] ready` when it's up. Slash commands sync automatically on
 /send_email     Send the draft via Gmail
 ```
 
----
+### Dev Tools
 
-## Stack
-
-| Layer    | Tech                               |
-| -------- | ---------------------------------- |
-| Bot      | discord.py                         |
-| Backend  | FastAPI + Uvicorn                  |
-| Database | Supabase (pgvector)                |
-| Scraping | httpx, trafilatura, BeautifulSoup4 |
-
----
-
-## Scraper Pipeline
-
-Populates the sponsor database. Run once, re-run to update.
-
-```bash
-python scraper/run.py
-```
-
-Sources: Waterloo design team sponsor pages, Velocity incubator, Wikipedia engineering categories, curated seeds.
-
-Output: ~1,600 entities with summaries, tags, and Waterloo affinity evidence stored in Supabase.
-
----
-
-## Dev Tools
-
-Test the RAG pipeline without opening Discord:
+Testing the RAG pipeline without opening Discord:
 
 ```bash
 python test_rag.py "we need RF hardware support"
 ```
 
----
+## Stack
+
+- **Bot**: discord.py
+- **Backend**: FastAPI
+- **Database**: Supabase (pgvector)
+- **Scrapers**: httpx, trafilatura, BeautifulSoup4
+
+## Architecture
+
+![](assets/arch.png)
