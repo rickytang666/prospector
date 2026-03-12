@@ -16,6 +16,10 @@ Waterloo design teams build satellites, solar cars, and autonomous vehicles — 
 
 Prospector fixes that. Point it at your GitHub, Notion, or Confluence and it builds a picture of what your team needs. Ask it for sponsors — it searches 1,600+ companies ranked by technical fit and Waterloo affinity, explains every match, and writes the cold email.
 
+### Demo
+
+https://github.com/user-attachments/assets/c71ee95b-9114-423a-8f52-e9d12d530846
+
 ## Features
 
 - **Sponsor discovery** — semantic search over 1,600+ companies, re-ranked by an LLM for your specific query
