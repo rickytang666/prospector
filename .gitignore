@@ -22,3 +22,5 @@ data/
 *.pyc
 
 logs.txt
+
+.DS_Store
